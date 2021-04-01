@@ -9,19 +9,14 @@ from openslides.agenda.models import Speaker
 from openslides.core.config import config
 from openslides.core.models import Tag
 from openslides.mediafiles.models import Mediafile
-from openslides.poll.models import BaseOption, BasePoll, BaseVote
+from openslides.poll.models import BaseOption, BasePoll, BaseVote, BaseVoteManager
 from openslides.utils.autoupdate import inform_changed_data
 from openslides.utils.exceptions import OpenSlidesError
 from openslides.utils.manager import BaseManager
 from openslides.utils.models import RESTModelMixin
+from openslides.utils.rest_api import ValidationError
 
 from ..utils.models import CASCADE_AND_AUTOUPDATE, SET_NULL_AND_AUTOUPDATE
-from .access_permissions import (
-    AssignmentAccessPermissions,
-    AssignmentOptionAccessPermissions,
-    AssignmentPollAccessPermissions,
-    AssignmentVoteAccessPermissions,
-)
 
 
 class AssignmentRelatedUser(RESTModelMixin, models.Model):
@@ -92,7 +87,6 @@ class Assignment(RESTModelMixin, AgendaItemWithListOfSpeakersMixin, models.Model
     Model for assignments.
     """
 
-    access_permissions = AssignmentAccessPermissions()
     can_see_permission = "assignments.can_see"
 
     objects = AssignmentManager()
@@ -218,7 +212,7 @@ class Assignment(RESTModelMixin, AgendaItemWithListOfSpeakersMixin, models.Model
         return {"title": self.title}
 
 
-class AssignmentVoteManager(BaseManager):
+class AssignmentVoteManager(BaseVoteManager):
     """
     Customized model manager to support our get_prefetched_queryset method.
     """
@@ -236,7 +230,6 @@ class AssignmentVoteManager(BaseManager):
 
 
 class AssignmentVote(RESTModelMixin, BaseVote):
-    access_permissions = AssignmentVoteAccessPermissions()
     objects = AssignmentVoteManager()
 
     option = models.ForeignKey(
@@ -267,7 +260,6 @@ class AssignmentOptionManager(BaseManager):
 
 
 class AssignmentOption(RESTModelMixin, BaseOption):
-    access_permissions = AssignmentOptionAccessPermissions()
     can_see_permission = "assignments.can_see"
     objects = AssignmentOptionManager()
     vote_class = AssignmentVote
@@ -305,7 +297,6 @@ class AssignmentPollManager(BaseManager):
 
 
 class AssignmentPoll(RESTModelMixin, BasePoll):
-    access_permissions = AssignmentPollAccessPermissions()
     can_see_permission = "assignments.can_see"
     objects = AssignmentPollManager()
 
@@ -334,6 +325,7 @@ class AssignmentPoll(RESTModelMixin, BasePoll):
     PERCENT_BASE_YNA = "YNA"
     PERCENT_BASE_VALID = "valid"
     PERCENT_BASE_CAST = "cast"
+    PERCENT_BASE_ENTITLED = "entitled"
     PERCENT_BASE_DISABLED = "disabled"
     PERCENT_BASES = (
         (PERCENT_BASE_YN, "Yes/No per candidate"),
@@ -341,6 +333,7 @@ class AssignmentPoll(RESTModelMixin, BasePoll):
         (PERCENT_BASE_Y, "Sum of votes including general No/Abstain"),
         (PERCENT_BASE_VALID, "All valid ballots"),
         (PERCENT_BASE_CAST, "All casted ballots"),
+        (PERCENT_BASE_ENTITLED, "All entitled users"),
         (PERCENT_BASE_DISABLED, "Disabled (no percents)"),
     )
     onehundred_percent_base = models.CharField(
@@ -377,8 +370,11 @@ class AssignmentPoll(RESTModelMixin, BasePoll):
         decimal_places=6,
     )
 
-    votes_amount = models.IntegerField(default=1, validators=[MinValueValidator(1)])
-    """ For "votes" mode: The amount of votes a voter can give. """
+    min_votes_amount = models.IntegerField(default=1, validators=[MinValueValidator(1)])
+    """ For "votes" mode: The min amount of votes a voter can give. """
+
+    max_votes_amount = models.IntegerField(default=1, validators=[MinValueValidator(1)])
+    """ For "votes" mode: The max amount of votes a voter can give. """
 
     allow_multiple_votes_per_candidate = models.BooleanField(default=False)
 
@@ -446,6 +442,13 @@ class AssignmentPoll(RESTModelMixin, BasePoll):
     amount_global_abstain = property(
         get_amount_global_abstain, set_amount_global_abstain
     )
+
+    def save(self, *args, **kwargs):
+        if self.max_votes_amount < self.min_votes_amount:
+            raise ValidationError(
+                {"detail": "max votes must be larger or equal to min votes"}
+            )
+        super().save(*args, **kwargs)
 
     def create_options(self, skip_autoupdate=False):
         related_users = AssignmentRelatedUser.objects.filter(

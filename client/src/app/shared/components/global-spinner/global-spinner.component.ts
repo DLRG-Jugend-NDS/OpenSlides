@@ -4,6 +4,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { TranslateService } from '@ngx-translate/core';
 import { Subscription } from 'rxjs';
 
+import { ErrorInformation, OpenSlidesStatusService } from 'app/core/core-services/openslides-status.service';
 import { OverlayService } from 'app/core/ui-services/overlay.service';
 
 /**
@@ -30,10 +31,7 @@ export class GlobalSpinnerComponent implements OnInit, OnDestroy {
      */
     private spinnerSubscription: Subscription;
 
-    /**
-     * Constant string as default message when the spinner is shown.
-     */
-    private LOADING = this.translate.instant('Loading data. Please wait ...');
+    public error: ErrorInformation | null = null;
 
     /**
      * Constructor
@@ -45,8 +43,14 @@ export class GlobalSpinnerComponent implements OnInit, OnDestroy {
     public constructor(
         private overlayService: OverlayService,
         protected translate: TranslateService,
-        private cd: ChangeDetectorRef
-    ) {}
+        private cd: ChangeDetectorRef,
+        private statusService: OpenSlidesStatusService
+    ) {
+        this.statusService.currentError.subscribe(error => {
+            this.error = error;
+            this.cd.markForCheck();
+        });
+    }
 
     /**
      * Init method
@@ -55,10 +59,11 @@ export class GlobalSpinnerComponent implements OnInit, OnDestroy {
         this.spinnerSubscription = this.overlayService // subscribe to the service.
             .getSpinner()
             .subscribe((value: { isVisible: boolean; text: string }) => {
+                this.error = null;
                 this.isVisible = value.isVisible;
                 this.text = this.translate.instant(value.text);
                 if (!this.text) {
-                    this.text = this.LOADING;
+                    this.text = this.translate.instant('Loading data. Please wait ...');
                 }
                 this.cd.detectChanges();
             });

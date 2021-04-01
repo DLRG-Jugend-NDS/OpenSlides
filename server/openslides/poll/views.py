@@ -7,14 +7,12 @@ from django.db.utils import IntegrityError
 from rest_framework import status
 
 from openslides.utils.auth import in_some_groups
-from openslides.utils.autoupdate import inform_changed_data
+from openslides.utils.autoupdate import disable_history, inform_changed_data
 from openslides.utils.rest_api import (
     DecimalField,
     GenericViewSet,
-    ListModelMixin,
     ModelViewSet,
     Response,
-    RetrieveModelMixin,
     ValidationError,
     detail_route,
 )
@@ -116,6 +114,11 @@ class BasePollViewSet(ModelViewSet):
             poll.state = BasePoll.STATE_FINISHED
         poll.save()
 
+    def extend_history_information(self, information):
+        # Use this method to add history information when a poll is started and stopped.
+        # The implementation can be found in concret view set e. g. MotionPollViewSet.
+        pass
+
     @detail_route(methods=["POST"])
     @transaction.atomic
     def start(self, request, pk):
@@ -126,6 +129,7 @@ class BasePollViewSet(ModelViewSet):
 
         poll.save()
         inform_changed_data(poll.get_votes())
+        self.extend_history_information(["Voting started"])
         return Response()
 
     @detail_route(methods=["POST"])
@@ -142,10 +146,10 @@ class BasePollViewSet(ModelViewSet):
         if poll.state != BasePoll.STATE_STARTED:
             raise ValidationError({"detail": "Wrong poll state"})
 
-        poll.state = BasePoll.STATE_FINISHED
-        poll.save()
+        poll.stop()
         inform_changed_data(poll.get_votes())
         inform_changed_data(poll.get_options())
+        self.extend_history_information(["Voting stopped"])
         return Response()
 
     @detail_route(methods=["POST"])
@@ -158,10 +162,14 @@ class BasePollViewSet(ModelViewSet):
         poll.state = BasePoll.STATE_PUBLISHED
         poll.save()
         inform_changed_data(
-            (vote.user for vote in poll.get_votes().all() if vote.user), final_data=True
+            (
+                vote.user
+                for vote in poll.get_votes().prefetch_related("user").all()
+                if vote.user
+            )
         )
-        inform_changed_data(poll.get_votes(), final_data=True)
-        inform_changed_data(poll.get_options(), final_data=True)
+        inform_changed_data(poll.get_votes())
+        inform_changed_data(poll.get_options())
         return Response()
 
     @detail_route(methods=["POST"])
@@ -177,6 +185,7 @@ class BasePollViewSet(ModelViewSet):
             raise ValidationError({"detail": "You can just anonymize named polls."})
 
         poll.pseudoanonymize()
+        self.extend_history_information(["Voting anonymized"])
         return Response()
 
     @detail_route(methods=["POST"])
@@ -184,6 +193,7 @@ class BasePollViewSet(ModelViewSet):
     def reset(self, request, pk):
         poll = self.get_object()
         poll.reset()
+        self.extend_history_information(["Voting reset"])
         return Response()
 
     @detail_route(methods=["POST"])
@@ -193,6 +203,9 @@ class BasePollViewSet(ModelViewSet):
         For motion polls: Just "Y", "N" or "A" (if pollmethod is "YNA")
         """
         poll = self.get_object()
+
+        # Disable history for these requests
+        disable_history()
 
         if isinstance(request.user, AnonymousUser):
             self.permission_denied(request)
@@ -205,7 +218,11 @@ class BasePollViewSet(ModelViewSet):
         if "data" not in data:
             raise ValidationError({"detail": "No data provided."})
         vote_data = data["data"]
-        if "user_id" in data and poll.type != BasePoll.TYPE_ANALOG:
+        if (
+            "user_id" in data
+            and data["user_id"] != request.user.id
+            and poll.type != BasePoll.TYPE_ANALOG
+        ):
             try:
                 vote_user = get_user_model().objects.get(pk=data["user_id"])
             except get_user_model().DoesNotExist:
@@ -241,9 +258,9 @@ class BasePollViewSet(ModelViewSet):
     @transaction.atomic
     def refresh(self, request, pk):
         poll = self.get_object()
-        inform_changed_data(poll, final_data=True)
-        inform_changed_data(poll.get_options(), final_data=True)
-        inform_changed_data(poll.get_votes(), final_data=True)
+        inform_changed_data(poll)
+        inform_changed_data(poll.get_options())
+        inform_changed_data(poll.get_votes())
         return Response()
 
     def assert_can_vote(self, poll, request, vote_user):
@@ -353,9 +370,9 @@ class BasePollViewSet(ModelViewSet):
         raise NotImplementedError()
 
 
-class BaseVoteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
+class BaseVoteViewSet(GenericViewSet):
     pass
 
 
-class BaseOptionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
+class BaseOptionViewSet(GenericViewSet):
     pass

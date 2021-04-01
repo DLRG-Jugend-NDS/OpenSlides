@@ -1,0 +1,63 @@
+version: "3"
+services:
+  client:
+    image: os3-client-dev
+    build:
+      context: ../client
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ../client/src:/app/src
+
+  server:
+    image: os3-server-dev
+    user: $USER_ID:$GROUP_ID
+    build:
+      context: ../server
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ../server:/app
+    depends_on:
+      - redis
+      - postgres
+
+  postgres:
+    image: postgres:11
+    environment:
+      - POSTGRES_USER=openslides
+      - POSTGRES_PASSWORD=openslides
+      - POSTGRES_DB=openslides
+    volumes:
+      - ./postgresql.dev.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c 'config_file=/etc/postgresql/postgresql.conf'
+
+  prometheus:
+    image: prom/prometheus:v2.24.0
+    volumes:
+    - ../prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml
+    ports:
+    - 9090:9090
+
+  autoupdate:
+    image: os3-autoupdate-dev
+    environment:
+        - MESSAGE_BUS_HOST=redis
+        - MESSAGE_BUS_PORT=6379
+    depends_on:
+        - server
+        - redis
+    volumes:
+      - ../autoupdate/cmd:/root/cmd
+      - ../autoupdate/internal:/root/internal
+  redis:
+    image: redis:latest
+
+  proxy:
+    image: os3-proxy-dev
+    volumes:
+      - ../caddy/Caddyfile.dev:/etc/caddy/Caddyfile
+    depends_on:
+      - client
+      - server
+      - autoupdate
+    ports:
+      - "8000:8000"

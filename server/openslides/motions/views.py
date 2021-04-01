@@ -25,16 +25,6 @@ from ..utils.rest_api import (
     list_route,
 )
 from ..utils.views import TreeSortMixin
-from .access_permissions import (
-    CategoryAccessPermissions,
-    MotionAccessPermissions,
-    MotionBlockAccessPermissions,
-    MotionChangeRecommendationAccessPermissions,
-    MotionCommentSectionAccessPermissions,
-    StateAccessPermissions,
-    StatuteParagraphAccessPermissions,
-    WorkflowAccessPermissions,
-)
 from .models import (
     Category,
     Motion,
@@ -63,16 +53,13 @@ class MotionViewSet(TreeSortMixin, ModelViewSet):
     There are a lot of views. See check_view_permissions().
     """
 
-    access_permissions = MotionAccessPermissions()
     queryset = Motion.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("metadata", "partial_update", "update", "destroy"):
+        if self.action in ("metadata", "partial_update", "update", "destroy"):
             result = has_perm(self.request.user, "motions.can_see")
             # For partial_update, update and destroy requests the rest of the check is
             # done in the update method. See below.
@@ -1194,6 +1181,14 @@ class MotionPollViewSet(BasePollViewSet):
 
         return result
 
+    def extend_history_information(self, information):
+        poll = self.get_object()
+        inform_changed_data(
+            poll.motion,
+            information=information,
+            user_id=self.request.user.pk,
+        )
+
     def handle_analog_vote(self, data, poll):
         option = poll.options.get()
         vote, _ = MotionVote.objects.get_or_create(option=option, value="Y")
@@ -1260,16 +1255,19 @@ class MotionPollViewSet(BasePollViewSet):
         self, data, poll, weight_user, vote_user, request_user
     ):
         option = poll.options.get()
-        vote = MotionVote.objects.create(
-            user=vote_user, delegated_user=request_user, option=option
-        )
-        vote.value = data
-        vote.weight = (
+        weight = (
             weight_user.vote_weight
             if config["users_activate_vote_weight"]
             else Decimal(1)
         )
-        vote.save(no_delete_on_restriction=True)
+        vote = MotionVote(
+            user=vote_user,
+            delegated_user=request_user,
+            option=option,
+            value=data,
+            weight=weight,
+        )
+        vote.save()
         inform_changed_data(option)
 
 
@@ -1295,18 +1293,13 @@ class MotionChangeRecommendationViewSet(ModelViewSet):
     partial_update, update and destroy.
     """
 
-    access_permissions = MotionChangeRecommendationAccessPermissions()
     queryset = MotionChangeRecommendation.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action == "metadata":
-            result = has_perm(self.request.user, "motions.can_see")
-        elif self.action in ("create", "destroy", "partial_update", "update"):
+        if self.action in ("create", "destroy", "partial_update", "update"):
             result = has_perm(self.request.user, "motions.can_see") and has_perm(
                 self.request.user, "motions.can_manage"
             )
@@ -1361,16 +1354,13 @@ class MotionCommentSectionViewSet(ModelViewSet):
     API endpoint for motion comment fields.
     """
 
-    access_permissions = MotionCommentSectionAccessPermissions()
     queryset = MotionCommentSection.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("create", "destroy", "update", "partial_update", "sort"):
+        if self.action in ("create", "destroy", "update", "partial_update", "sort"):
             result = has_perm(self.request.user, "motions.can_see") and has_perm(
                 self.request.user, "motions.can_manage"
             )
@@ -1452,16 +1442,13 @@ class StatuteParagraphViewSet(ModelViewSet):
     partial_update, update and destroy.
     """
 
-    access_permissions = StatuteParagraphAccessPermissions()
     queryset = StatuteParagraph.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("create", "partial_update", "update", "destroy"):
+        if self.action in ("create", "partial_update", "update", "destroy"):
             result = has_perm(self.request.user, "motions.can_see") and has_perm(
                 self.request.user, "motions.can_manage"
             )
@@ -1478,16 +1465,13 @@ class CategoryViewSet(TreeSortMixin, ModelViewSet):
     partial_update, update, destroy and numbering.
     """
 
-    access_permissions = CategoryAccessPermissions()
     queryset = Category.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve", "metadata"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in (
+        if self.action in (
             "create",
             "partial_update",
             "update",
@@ -1595,18 +1579,13 @@ class MotionBlockViewSet(ModelViewSet):
     partial_update, update and destroy.
     """
 
-    access_permissions = MotionBlockAccessPermissions()
     queryset = MotionBlock.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action == "metadata":
-            result = has_perm(self.request.user, "motions.can_see")
-        elif self.action in (
+        if self.action in (
             "create",
             "partial_update",
             "update",
@@ -1673,16 +1652,13 @@ class WorkflowViewSet(ModelViewSet, ProtectedErrorMessageMixin):
     partial_update, update and destroy.
     """
 
-    access_permissions = WorkflowAccessPermissions()
     queryset = Workflow.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve", "metadata"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("create", "partial_update", "update", "destroy"):
+        if self.action in ("create", "partial_update", "update", "destroy"):
             result = has_perm(self.request.user, "motions.can_see") and has_perm(
                 self.request.user, "motions.can_manage"
             )
@@ -1723,15 +1699,12 @@ class StateViewSet(ModelViewSet, ProtectedErrorMessageMixin):
     """
 
     queryset = State.objects.all()
-    access_permissions = StateAccessPermissions()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve", "metadata"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("create", "partial_update", "update", "destroy"):
+        if self.action in ("create", "partial_update", "update", "destroy"):
             result = has_perm(self.request.user, "motions.can_see") and has_perm(
                 self.request.user, "motions.can_manage"
             )

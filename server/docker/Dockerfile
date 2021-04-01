@@ -51,8 +51,7 @@ RUN apt-get install --no-install-recommends -y \
 RUN rm -rf /var/lib/apt/lists/*
 
 COPY requirements /app/requirements
-RUN pip install -r requirements/production.txt -r requirements/big_mode.txt \
-    -r requirements/saml.txt && \
+RUN pip install -r requirements/production.txt -r requirements/saml.txt && \
     rm -rf /root/.cache/pip
 
 # SAML
@@ -70,5 +69,4 @@ COPY manage.py /app/
 COPY openslides /app/openslides
 COPY docker/server-version.txt /app/openslides/core/static/server-version.txt
 ENTRYPOINT ["/usr/local/sbin/entrypoint"]
-CMD ["gunicorn", "-w", "8", "--preload", "-b", "0.0.0.0:8000", "-k", \
-  "uvicorn.workers.UvicornWorker", "openslides.asgi:application"]
+CMD ["gunicorn", "-w", "8", "--preload", "-t", "240", "-b", "0.0.0.0:8000", "openslides.wsgi"]

@@ -16,7 +16,7 @@ EOF
 }
 
 # Set DJANGO_SECRET_KEY variable
-source /run/secrets/django
+source /run/secrets/django || true
 [[ -n "$DJANGO_SECRET_KEY" ]] || {
   echo "ERROR: Django secret key undefined!  Cannot continue."
   sleep 5
@@ -24,23 +24,17 @@ source /run/secrets/django
 }
 export SECRET_KEY="$DJANGO_SECRET_KEY"
 
-# Configure database
-# TODO: env variables??
-echo "postgres:5432:instancecfg:openslides:openslides" > "${HOME}/.pgpass"
-chmod 600 "${HOME}/.pgpass"
-
-until pg_isready -h db; do
+until pg_isready -h "${DATABASE_HOST:-pgbouncer}" -p "${DATABASE_PORT:-5432}"; do
   echo "Waiting for Postgres cluster to become available..."
   sleep 3
 done
 
 # Wait for redis
-wait-for-it redis:6379
-wait-for-it redis-slave:6379
-wait-for-it redis-channels:6379
+wait-for-it "${REDIS_HOST:-redis}:${REDIS_PORT:-6379}"
+wait-for-it "${REDIS_SLAVE_HOST:-redis-slave}:${REDIS_SLAVE_PORT:-6379}"
 
 echo 'running migrations'
-python manage.py migrate
+python -u manage.py migrate
 
 # Admin
 if [[ -f /run/secrets/os_admin ]]; then

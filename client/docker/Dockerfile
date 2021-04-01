@@ -1,4 +1,4 @@
-FROM node:13 AS nodejs
+FROM node:14 AS nodejs
 
 RUN mkdir -p /build/app
 WORKDIR /build/app
@@ -10,8 +10,8 @@ RUN npm install -g @angular/cli@^10
 RUN ng config -g cli.warnings.versionMismatch false
 
 USER openslides
-COPY package.json .
-COPY package-lock.json .
+COPY package.json package-lock.json ./
+RUN npm -v
 RUN npm ci
 COPY browserslist *.json ./
 COPY src ./src

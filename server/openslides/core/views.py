@@ -22,6 +22,7 @@ from ..utils.arguments import arguments
 from ..utils.auth import GROUP_ADMIN_PK, anonymous_is_enabled, has_perm, in_some_groups
 from ..utils.autoupdate import inform_changed_data
 from ..utils.cache import element_cache
+from ..utils.constants import get_constants
 from ..utils.plugins import (
     get_plugin_description,
     get_plugin_license,
@@ -31,21 +32,11 @@ from ..utils.plugins import (
 )
 from ..utils.rest_api import (
     GenericViewSet,
-    ListModelMixin,
     ModelViewSet,
     Response,
-    RetrieveModelMixin,
     ValidationError,
     detail_route,
     list_route,
-)
-from .access_permissions import (
-    ConfigAccessPermissions,
-    CountdownAccessPermissions,
-    ProjectionDefaultAccessPermissions,
-    ProjectorAccessPermissions,
-    ProjectorMessageAccessPermissions,
-    TagAccessPermissions,
 )
 from .config import config
 from .exceptions import ConfigError, ConfigNotFound
@@ -114,18 +105,13 @@ class ProjectorViewSet(ModelViewSet):
     There are the following views: See strings in check_view_permissions().
     """
 
-    access_permissions = ProjectorAccessPermissions()
     queryset = Projector.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action == "metadata":
-            result = has_perm(self.request.user, "core.can_see_projector")
-        elif self.action in (
+        if self.action in (
             "create",
             "update",
             "partial_update",
@@ -342,7 +328,7 @@ class ProjectorViewSet(ModelViewSet):
         return Response()
 
 
-class ProjectionDefaultViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
+class ProjectionDefaultViewSet(GenericViewSet):
     """
     API endpoint for projection defaults.
 
@@ -350,18 +336,13 @@ class ProjectionDefaultViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
     to projectors can be done by updating the projector.
     """
 
-    access_permissions = ProjectionDefaultAccessPermissions()
     queryset = ProjectionDefault.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        else:
-            result = False
-        return result
+        return False
 
 
 class TagViewSet(ModelViewSet):
@@ -372,20 +353,13 @@ class TagViewSet(ModelViewSet):
     partial_update, update and destroy.
     """
 
-    access_permissions = TagAccessPermissions()
     queryset = Tag.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action == "metadata":
-            # Every authenticated user can see the metadata.
-            # Anonymous users can do so if they are enabled.
-            result = self.request.user.is_authenticated or anonymous_is_enabled()
-        elif self.action in ("create", "partial_update", "update", "destroy"):
+        if self.action in ("create", "partial_update", "update", "destroy"):
             result = has_perm(self.request.user, "core.can_manage_tags")
         else:
             result = False
@@ -400,7 +374,6 @@ class ConfigViewSet(ModelViewSet):
     partial_update.
     """
 
-    access_permissions = ConfigAccessPermissions()
     queryset = ConfigStore.objects.all()
 
     can_manage_config = None
@@ -410,9 +383,7 @@ class ConfigViewSet(ModelViewSet):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("partial_update", "update"):
+        if self.action in ("partial_update", "update"):
             result = self.check_config_permission(self.kwargs["pk"])
         elif self.action == "reset_groups":
             result = has_perm(self.request.user, "core.can_manage_config")
@@ -526,16 +497,13 @@ class ProjectorMessageViewSet(ModelViewSet):
     partial_update and destroy.
     """
 
-    access_permissions = ProjectorMessageAccessPermissions()
     queryset = ProjectorMessage.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("create", "partial_update", "update", "destroy"):
+        if self.action in ("create", "partial_update", "update", "destroy"):
             result = has_perm(self.request.user, "core.can_manage_projector")
         else:
             result = False
@@ -550,16 +518,13 @@ class CountdownViewSet(ModelViewSet):
     partial_update and destroy.
     """
 
-    access_permissions = CountdownAccessPermissions()
     queryset = Countdown.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("create", "partial_update", "update", "destroy"):
+        if self.action in ("create", "partial_update", "update", "destroy"):
             result = has_perm(self.request.user, "core.can_manage_projector")
         else:
             result = False
@@ -569,7 +534,7 @@ class CountdownViewSet(ModelViewSet):
 # Special API views
 
 
-class ServerTime(utils_views.APIView):
+class ServertimeView(utils_views.APIView):
     """
     Returns the server time as UNIX timestamp.
     """
@@ -578,6 +543,19 @@ class ServerTime(utils_views.APIView):
 
     def get_context_data(self, **context):
         return now().timestamp()
+
+
+class ConstantsView(utils_views.APIView):
+    """
+    Returns the server time as UNIX timestamp.
+    """
+
+    http_method_names = ["get"]
+
+    def get_context_data(self, **context):
+        if not self.request.user.is_authenticated and not anonymous_is_enabled():
+            self.permission_denied(self.request)
+        return get_constants()
 
 
 class VersionView(utils_views.APIView):

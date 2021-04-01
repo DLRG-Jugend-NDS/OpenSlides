@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
 
+import { TranslateService } from '@ngx-translate/core';
+
 import { LineNumberedString, LinenumberingService, LineNumberRange } from './linenumbering.service';
 import { ViewUnifiedChange } from '../../shared/models/motions/view-unified-change';
 
@@ -240,7 +242,10 @@ export class DiffService {
      *
      * @param {LinenumberingService} lineNumberingService
      */
-    public constructor(private readonly lineNumberingService: LinenumberingService) {}
+    public constructor(
+        private readonly lineNumberingService: LinenumberingService,
+        protected translate: TranslateService
+    ) {}
 
     /**
      * Searches for the line breaking node within the given Document specified by the given lineNumber.
@@ -542,7 +547,21 @@ export class DiffService {
             '&sect;': '§',
             '&eacute;': 'é',
             '&rsquo;': '’',
-            '&euro;': '€'
+            '&euro;': '€',
+            '&reg;': '®',
+            '&trade;': '™',
+            '&raquo;': '»',
+            '&laquo;': '«',
+            '&Acirc;': 'Â',
+            '&acirc;': 'â',
+            '&Ccedil;': 'Ç',
+            '&ccedil;': 'ç',
+            '&Egrave;': 'È',
+            '&egrave;': 'è',
+            '&Ntilde;': 'Ñ',
+            '&ntilde;': 'ñ',
+            '&Euml;': 'Ë',
+            '&euml;': 'ë'
         };
 
         html = html
@@ -2238,7 +2257,15 @@ export class DiffService {
             // That's a pretty serious inconsistency that should not happen at all,
             // we're just doing some basic damage control here.
             const msg =
-                'Inconsistent data. A change recommendation is probably referring to a non-existant line number.';
+                this.translate.instant('Inconsistent data.') +
+                ' ' +
+                this.translate.instant(
+                    'A change recommendation or amendment is probably referring to a non-existant line number.'
+                ) +
+                ' ' +
+                this.translate.instant(
+                    'If it is an amendment, you can back up its content when editing it and delete it afterwards.'
+                );
             return '<em style="color: red; font-weight: bold;">' + msg + '</em>';
         }
 
@@ -2299,7 +2326,11 @@ export class DiffService {
             // That's a pretty serious inconsistency that should not happen at all,
             // we're just doing some basic damage control here.
             const msg =
-                'Inconsistent data. A change recommendation is probably referring to a non-existant line number.';
+                this.translate.instant('Inconsistent data.') +
+                ' ' +
+                this.translate.instant(
+                    'A change recommendation or amendment is probably referring to a non-existant line number.'
+                );
             return '<em style="color: red; font-weight: bold;">' + msg + '</em>';
         }
 

@@ -28,11 +28,6 @@ from ..utils.models import (
     SET_NULL_AND_AUTOUPDATE,
     RESTModelMixin,
 )
-from .access_permissions import (
-    GroupAccessPermissions,
-    PersonalNoteAccessPermissions,
-    UserAccessPermissions,
-)
 
 
 class UserManager(BaseUserManager):
@@ -130,8 +125,6 @@ class User(RESTModelMixin, PermissionsMixin, AbstractBaseUser):
     candidates.
     """
 
-    access_permissions = UserAccessPermissions()
-
     USERNAME_FIELD = "username"
 
     username = models.CharField(max_length=255, unique=True, blank=True)
@@ -193,7 +186,6 @@ class User(RESTModelMixin, PermissionsMixin, AbstractBaseUser):
             ("can_change_password", "Can change its own password"),
             ("can_manage", "Can manage users"),
         )
-        ordering = ("last_name", "first_name", "username")
 
     def __str__(self):
         # Strip white spaces from the name parts
@@ -226,6 +218,20 @@ class User(RESTModelMixin, PermissionsMixin, AbstractBaseUser):
         raise RuntimeError(
             "Do not use user.has_perm() but use openslides.utils.auth.has_perm"
         )
+
+    def short_name(self):
+        first_name = self.first_name.strip()
+        last_name = self.last_name.strip()
+        short_name = f"{first_name} {last_name}".strip()
+
+        if not short_name:
+            short_name = self.username
+
+        title = self.title.strip()
+        if title:
+            short_name = f"{title} {short_name}"
+
+        return short_name
 
     def send_invitation_email(
         self, connection, subject, message, skip_autoupdate=False
@@ -343,7 +349,6 @@ class Group(RESTModelMixin, DjangoGroup):
     Extend the django group with support of our REST and caching system.
     """
 
-    access_permissions = GroupAccessPermissions()
     objects = GroupManager()
 
     class Meta:
@@ -367,14 +372,6 @@ class PersonalNote(RESTModelMixin, models.Model):
     """
     Model for personal notes (e. g. likes/stars) of a user concerning different
     openslides objects like motions.
-    """
-
-    access_permissions = PersonalNoteAccessPermissions()
-
-    personalized_model = True
-    """
-    Each model belongs to one user. This relation is set during creation and
-    will not be changed.
     """
 
     objects = PersonalNoteManager()

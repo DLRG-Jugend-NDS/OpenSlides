@@ -5,6 +5,9 @@ from django.contrib.auth.signals import user_logged_in
 from .user_backend import DefaultUserBackend, user_backend_manager
 
 
+ENABLE_CHAT = getattr(settings, "ENABLE_CHAT", False)
+
+
 class UsersAppConfig(AppConfig):
     name = "openslides.users"
     verbose_name = "OpenSlides Users"
@@ -15,12 +18,8 @@ class UsersAppConfig(AppConfig):
         from ..core.signals import permission_change, post_permission_creation
         from ..utils.rest_api import router
         from . import serializers  # noqa
-        from .projector import register_projector_slides
         from .signals import create_builtin_groups_and_admin, get_permission_change_data
         from .views import GroupViewSet, PersonalNoteViewSet, UserViewSet
-
-        # Define projector elements.
-        register_projector_slides()
 
         # Connect signals.
         post_permission_creation.connect(
@@ -64,6 +63,8 @@ class UsersAppConfig(AppConfig):
         # Permissions
         permissions = []
         for permission in Permission.objects.all():
+            if permission.content_type.app_label == "chat" and not ENABLE_CHAT:
+                continue
             permissions.append(
                 {
                     "display_name": permission.name,

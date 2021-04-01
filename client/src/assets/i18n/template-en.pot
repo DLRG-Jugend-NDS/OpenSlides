@@ -19,6 +19,11 @@ msgstr ""
 msgid "<unknown motion>"
 msgstr ""
 
+msgid ""
+"A change recommendation or amendment is probably referring to a "
+"non-existant line number."
+msgstr ""
+
 msgid "A file with this title or filename already exists in this directory."
 msgstr ""
 
@@ -206,7 +211,13 @@ msgstr ""
 msgid "Amount of votes"
 msgstr ""
 
+msgid "An amendment is probably referring to a non-existant line number."
+msgstr ""
+
 msgid "An email with a password reset link was send!"
+msgstr ""
+
+msgid "An error happened"
 msgstr ""
 
 msgid "An unknown error occurred."
@@ -221,6 +232,15 @@ msgstr ""
 msgid "Anonymous"
 msgstr ""
 
+msgid "Applause interval in seconds"
+msgstr ""
+
+msgid "Applause particle image URL"
+msgstr ""
+
+msgid "Applause visualization"
+msgstr ""
+
 msgid "Apply"
 msgstr ""
 
@@ -231,6 +251,9 @@ msgid "Are you sure you want delete the whole history?"
 msgstr ""
 
 msgid "Are you sure you want to anonymize all votes? This cannot be undone."
+msgstr ""
+
+msgid "Are you sure you want to clear all messages in this chat?"
 msgstr ""
 
 msgid "Are you sure you want to clear all speakers of all lists?"
@@ -260,6 +283,9 @@ msgstr ""
 msgid "Are you sure you want to delete this change recommendation?"
 msgstr ""
 
+msgid "Are you sure you want to delete this chat group?"
+msgstr ""
+
 msgid "Are you sure you want to delete this comment field?"
 msgstr ""
 
@@ -273,6 +299,9 @@ msgid "Are you sure you want to delete this file?"
 msgstr ""
 
 msgid "Are you sure you want to delete this group?"
+msgstr ""
+
+msgid "Are you sure you want to delete this message?"
 msgstr ""
 
 msgid "Are you sure you want to delete this motion block?"
@@ -445,6 +474,9 @@ msgstr ""
 msgid "Can manage agenda"
 msgstr ""
 
+msgid "Can manage chat"
+msgstr ""
+
 msgid "Can manage comments"
 msgstr ""
 
@@ -607,6 +639,9 @@ msgstr ""
 msgid "Changes"
 msgstr ""
 
+msgid "Chat"
+msgstr ""
+
 msgid "Check for updates"
 msgstr ""
 
@@ -625,6 +660,9 @@ msgstr ""
 msgid "Chyron font color"
 msgstr ""
 
+msgid "Clear"
+msgstr ""
+
 msgid "Clear all"
 msgstr ""
 
@@ -641,6 +679,9 @@ msgid "Clear motion block"
 msgstr ""
 
 msgid "Clear tags"
+msgstr ""
+
+msgid "Click here for more information"
 msgstr ""
 
 msgid "Click here to vote!"
@@ -697,6 +738,9 @@ msgstr ""
 msgid "Content"
 msgstr ""
 
+msgid "Cookies have to be enabled to use OpenSlides."
+msgstr ""
+
 msgid "Copy and paste your participant names in this textbox."
 msgstr ""
 
@@ -734,6 +778,9 @@ msgid "Create"
 msgstr ""
 
 msgid "Create final print template"
+msgstr ""
+
+msgid "Create new chat group"
 msgstr ""
 
 msgid "Create user"
@@ -826,6 +873,17 @@ msgid "Default visibility for new agenda items (except topics)"
 msgstr ""
 
 msgid "Default voting type"
+msgstr ""
+
+msgid ""
+"Defines the maximum deflection. Entering zero will use the amount of "
+"present participants instead."
+msgstr ""
+
+msgid "Defines the minimum deflection which is required to recognize applause."
+msgstr ""
+
+msgid "Defines the time in which applause amounts are add up."
 msgstr ""
 
 msgid "Delegates"
@@ -1027,6 +1085,12 @@ msgstr ""
 msgid "Enable points of order"
 msgstr ""
 
+msgid "Enable virtual applause"
+msgstr ""
+
+msgid "Enable virtual help desk room"
+msgstr ""
+
 msgid "Enable/disable account ..."
 msgstr ""
 
@@ -1212,6 +1276,9 @@ msgstr ""
 msgid "Generate password"
 msgstr ""
 
+msgid "Give applause"
+msgstr ""
+
 msgid "Given name"
 msgstr ""
 
@@ -1263,6 +1330,9 @@ msgstr ""
 msgid "Headline color"
 msgstr ""
 
+msgid "Help desk"
+msgstr ""
+
 msgid "Help text for access data and welcome PDF"
 msgstr ""
 
@@ -1293,6 +1363,9 @@ msgstr ""
 msgid "Hide the amount of speakers in subtitle of list of speakers slide"
 msgstr ""
 
+msgid "Highest applause amount"
+msgstr ""
+
 msgid "Hint on voting"
 msgstr ""
 
@@ -1314,6 +1387,11 @@ msgstr ""
 msgid ""
 "Identifier, reason, submitter, category, origin and motion block are "
 "optional and may be empty."
+msgstr ""
+
+msgid ""
+"If it is an amendment, you can back up its content when editing it and "
+"delete it afterwards."
 msgstr ""
 
 msgid "Import"
@@ -1341,6 +1419,9 @@ msgid "In the election process"
 msgstr ""
 
 msgid "Inactive"
+msgstr ""
+
+msgid "Inconsistent data."
 msgstr ""
 
 msgid "Initial password"
@@ -1457,6 +1538,9 @@ msgstr ""
 msgid "Legal notice"
 msgstr ""
 
+msgid "Level indicator"
+msgstr ""
+
 msgid "License"
 msgstr ""
 
@@ -1479,6 +1563,9 @@ msgid "List of participants (PDF)"
 msgstr ""
 
 msgid "List of speakers"
+msgstr ""
+
+msgid "List of speakers is initially closed"
 msgstr ""
 
 msgid "List of speakers overlay"
@@ -1517,6 +1604,9 @@ msgstr ""
 msgid "Logout"
 msgstr ""
 
+msgid "Lowest applause amount"
+msgstr ""
+
 msgid "Main motion and line number"
 msgstr ""
 
@@ -1524,6 +1614,9 @@ msgid "Mark as personal favorite"
 msgstr ""
 
 msgid "Mark speaker"
+msgstr ""
+
+msgid "Maximum amount of votes"
 msgstr ""
 
 msgid "Media access is denied"
@@ -1541,10 +1634,16 @@ msgstr ""
 msgid "Meta information"
 msgstr ""
 
+msgid "Min votes cannot be greater than max votes."
+msgstr ""
+
 msgid "Minimal required version"
 msgstr ""
 
 msgid "Minimize"
+msgstr ""
+
+msgid "Minimum amount of votes"
 msgstr ""
 
 msgid "More"
@@ -1722,6 +1821,9 @@ msgid "No change recommendations yet"
 msgstr ""
 
 msgid "No changes at the text."
+msgstr ""
+
+msgid "No chat groups available"
 msgstr ""
 
 msgid "No comment"
@@ -2019,6 +2121,9 @@ msgstr ""
 msgid "Participants have been imported."
 msgstr ""
 
+msgid "Particles"
+msgstr ""
+
 msgid "Password"
 msgstr ""
 
@@ -2046,6 +2151,9 @@ msgstr ""
 msgid "Please allow OpenSlides to access your microphone and/or camera"
 msgstr ""
 
+msgid "Please contact your system administrator."
+msgstr ""
+
 msgid "Please enter a name for the new directory:"
 msgstr ""
 
@@ -2061,7 +2169,7 @@ msgstr ""
 msgid "Please enter your new password"
 msgstr ""
 
-msgid "Please login via your identity provider"
+msgid "Please login via your identity provider."
 msgstr ""
 
 msgid "Please select the directory:"
@@ -2161,6 +2269,9 @@ msgid "Put all candidates on the list of speakers"
 msgstr ""
 
 msgid "Queue"
+msgstr ""
+
+msgid "QuotaExceededError: The local storage's quota is too low"
 msgstr ""
 
 msgid "Re-add last speaker"
@@ -2355,6 +2466,9 @@ msgstr ""
 msgid "Select paragraphs"
 msgstr ""
 
+msgid "Send"
+msgstr ""
+
 msgid "Send invitation email"
 msgstr ""
 
@@ -2448,6 +2562,9 @@ msgstr ""
 msgid "Show amendments together with motions"
 msgstr ""
 
+msgid "Show applause amount"
+msgstr ""
+
 msgid "Show checkbox to record decision"
 msgstr ""
 
@@ -2487,6 +2604,9 @@ msgstr ""
 msgid "Show meta information box below the title on projector"
 msgstr ""
 
+msgid "Show motion submitters in the agenda"
+msgstr ""
+
 msgid "Show orange countdown in the last x seconds of speaking time"
 msgstr ""
 
@@ -2508,9 +2628,6 @@ msgstr ""
 msgid "Show submitters and recommendation/state in table of contents"
 msgstr ""
 
-msgid "Show subtitles in the agenda"
-msgstr ""
-
 msgid "Show the sequential number for a motion"
 msgstr ""
 
@@ -2524,8 +2641,18 @@ msgid "Show/Hide video conference"
 msgstr ""
 
 msgid ""
+"Shows a button with help icon to connect to an extra Jitsi conference room "
+"for technical audio/video tests."
+msgstr ""
+
+msgid ""
 "Shows if livestream is not started. Recommended image format: 500x200px, "
 "PNG or JPG"
+msgstr ""
+
+msgid ""
+"Shows the given image as applause particle. Recommended image format: "
+"24x24px, PNG, JPG or SVG"
 msgstr ""
 
 msgid "Simple Workflow"
@@ -2726,9 +2853,6 @@ msgstr ""
 msgid "The live conference is already running in your OpenSlides session."
 msgstr ""
 
-msgid "The livestream is disabled because you are inside a conference"
-msgstr ""
-
 msgid ""
 "The maximum number of characters per line. Relevant when line numbering is "
 "enabled. Min: 40"
@@ -2793,6 +2917,9 @@ msgid "This element does not exist at this time."
 msgstr ""
 
 msgid "This field is required."
+msgstr ""
+
+msgid "This paragraph does not exist in the main motion anymore:"
 msgstr ""
 
 msgid "This prefix will be set if you run the automatic agenda numbering."
@@ -2942,6 +3069,9 @@ msgstr ""
 msgid "View"
 msgstr ""
 
+msgid "Virtual applause"
+msgstr ""
+
 msgid "Visibility"
 msgstr ""
 
@@ -2966,6 +3096,9 @@ msgstr ""
 msgid "Voting and ballot papers"
 msgstr ""
 
+msgid "Voting anonymized"
+msgstr ""
+
 msgid "Voting is currently in progress."
 msgstr ""
 
@@ -2973,6 +3106,9 @@ msgid "Voting method"
 msgstr ""
 
 msgid "Voting opened"
+msgstr ""
+
+msgid "Voting reset"
 msgstr ""
 
 msgid "Voting result"
@@ -2985,6 +3121,12 @@ msgid "Voting right for"
 msgstr ""
 
 msgid "Voting right received from (principals)"
+msgstr ""
+
+msgid "Voting started"
+msgstr ""
+
+msgid "Voting stopped"
 msgstr ""
 
 msgid "Voting successful."
@@ -3012,6 +3154,12 @@ msgid "WLAN password"
 msgstr ""
 
 msgid "WPA/WPA2"
+msgstr ""
+
+msgid ""
+"Warning: Amendments exist for this motion. Editing this text will likely "
+"impact them negatively. Particularily, amendments might become unusable if "
+"the paragraph they affect is deleted."
 msgstr ""
 
 msgid "Web interface header logo"
@@ -3079,6 +3227,9 @@ msgid "You are not supposed to be here..."
 msgstr ""
 
 msgid "You are using the history mode of OpenSlides. Changes will not be saved."
+msgstr ""
+
+msgid "You can back up its content when editing it and delete it afterwards."
 msgstr ""
 
 msgid "You can just anonymize named polls"
@@ -3155,6 +3306,9 @@ msgstr ""
 msgid "You reached the maximum amount of votes. Deselect somebody first."
 msgstr ""
 
+msgid "Your account is not active."
+msgstr ""
+
 msgid "Your browser"
 msgstr ""
 
@@ -3213,6 +3367,9 @@ msgid "analog"
 msgstr ""
 
 msgid "and"
+msgstr ""
+
+msgid "at least"
 msgstr ""
 
 msgid "ballot-paper"

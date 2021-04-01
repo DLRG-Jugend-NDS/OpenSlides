@@ -13,12 +13,22 @@ define(`read_env', `esyscmd(`printf "\`%s'" "$$1"')')
 dnl return env variable if set; otherwise, return given alternative value
 define(`ifenvelse', `ifelse(read_env(`$1'),, `$2', read_env(`$1'))')
 
+define(`PROXY_IMAGE',
+ifenvelse(`DEFAULT_DOCKER_REGISTRY', openslides)/dnl
+ifenvelse(`DOCKER_OPENSLIDES_PROXY_NAME', openslides-proxy):dnl
+ifenvelse(`DOCKER_OPENSLIDES_PROXY_TAG', latest))
 define(`BACKEND_IMAGE',
-ifenvelse(`DOCKER_OPENSLIDES_BACKEND_NAME', openslides/openslides-server):dnl
+ifenvelse(`DEFAULT_DOCKER_REGISTRY', openslides)/dnl
+ifenvelse(`DOCKER_OPENSLIDES_BACKEND_NAME', openslides-server):dnl
 ifenvelse(`DOCKER_OPENSLIDES_BACKEND_TAG', latest))
 define(`FRONTEND_IMAGE',
-ifenvelse(`DOCKER_OPENSLIDES_FRONTEND_NAME', openslides/openslides-client):dnl
+ifenvelse(`DEFAULT_DOCKER_REGISTRY', openslides)/dnl
+ifenvelse(`DOCKER_OPENSLIDES_FRONTEND_NAME', openslides-client):dnl
 ifenvelse(`DOCKER_OPENSLIDES_FRONTEND_TAG', latest))
+define(`AUTOUPDATE_IMAGE',
+ifenvelse(`DEFAULT_DOCKER_REGISTRY', openslides)/dnl
+ifenvelse(`DOCKER_OPENSLIDES_AUTOUPDATE_NAME', openslides-autoupdate):dnl
+ifenvelse(`DOCKER_OPENSLIDES_AUTOUPDATE_TAG', latest))
 
 define(`PRIMARY_DB', `ifenvelse(`PGNODE_REPMGR_PRIMARY', pgnode1)')
 
@@ -41,10 +51,8 @@ x-osserver:
   &default-osserver
   image: BACKEND_IMAGE
   networks:
-    - front
     - back
 x-osserver-env: &default-osserver-env
-    AMOUNT_REPLICAS: ifenvelse(`REDIS_RO_SERVICE_REPLICAS', 3)
     AUTOUPDATE_DELAY: ifenvelse(`AUTOUPDATE_DELAY', 1)
     DEMO_USERS: "ifenvelse(`DEMO_USERS',)"
     CONNECTION_POOL_LIMIT: ifenvelse(`CONNECTION_POOL_LIMIT', 100)
@@ -53,7 +61,6 @@ x-osserver-env: &default-osserver-env
     DATABASE_PORT: ifenvelse(`DATABASE_PORT', 5432)
     DATABASE_USER: "ifenvelse(`DATABASE_USER', openslides)"
     DEFAULT_FROM_EMAIL: "ifenvelse(`DEFAULT_FROM_EMAIL', noreply@example.com)"
-    DJANGO_LOG_LEVEL: "ifenvelse(`DJANGO_LOG_LEVEL', INFO)"
     EMAIL_HOST: "ifenvelse(`EMAIL_HOST', postfix)"
     EMAIL_HOST_PASSWORD: "ifenvelse(`EMAIL_HOST_PASSWORD',)"
     EMAIL_HOST_USER: "ifenvelse(`EMAIL_HOST_USER',)"
@@ -62,19 +69,18 @@ x-osserver-env: &default-osserver-env
     EMAIL_USE_TLS: "ifenvelse(`EMAIL_USE_TLS',)"
     EMAIL_TIMEOUT: "ifenvelse(`EMAIL_TIMEOUT',)"
     ENABLE_ELECTRONIC_VOTING: "ifenvelse(`ENABLE_ELECTRONIC_VOTING', False)"
+    ENABLE_CHAT: "ifenvelse(`ENABLE_CHAT', False)"
     ENABLE_SAML: "ifenvelse(`ENABLE_SAML', False)"
     INSTANCE_DOMAIN: "ifenvelse(`INSTANCE_DOMAIN', http://example.com:8000)"
     JITSI_DOMAIN: "ifenvelse(`JITSI_DOMAIN',)"
     JITSI_ROOM_PASSWORD: "ifenvelse(`JITSI_ROOM_PASSWORD',)"
     JITSI_ROOM_NAME: "ifenvelse(`JITSI_ROOM_NAME',)"
     OPENSLIDES_LOG_LEVEL: "ifenvelse(`OPENSLIDES_LOG_LEVEL', INFO)"
-    REDIS_CHANNLES_HOST: "ifenvelse(`REDIS_CHANNLES_HOST', redis-channels)"
-    REDIS_CHANNLES_PORT: ifenvelse(`REDIS_CHANNLES_PORT', 6379)
+    DJANGO_LOG_LEVEL: "ifenvelse(`DJANGO_LOG_LEVEL', INFO)"
     REDIS_HOST: "ifenvelse(`REDIS_HOST', redis)"
     REDIS_PORT: ifenvelse(`REDIS_PORT', 6379)
     REDIS_SLAVE_HOST: "ifenvelse(`REDIS_SLAVE_HOST', redis-slave)"
     REDIS_SLAVE_PORT: ifenvelse(`REDIS_SLAVE_PORT', 6379)
-    REDIS_SLAVE_WAIT_TIMEOUT: ifenvelse(`REDIS_SLAVE_WAIT_TIMEOUT', 10000)
     RESET_PASSWORD_VERBOSE_ERRORS: "ifenvelse(`RESET_PASSWORD_VERBOSE_ERRORS', False)"
 x-pgnode: &default-pgnode
   image: ifenvelse(`DEFAULT_DOCKER_REGISTRY', openslides)/openslides-repmgr:latest
@@ -90,15 +96,20 @@ x-pgnode-env: &default-pgnode-env
   REPMGR_WAL_ARCHIVE: "ifenvelse(`PGNODE_WAL_ARCHIVING', on)"
 
 services:
+  proxy:
+    image: PROXY_IMAGE
+    networks:
+      - front
+      - back
+    ports:
+      - "0.0.0.0:ifenvelse(`EXTERNAL_HTTP_PORT', 8000):8000"
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
   server:
     << : *default-osserver
-    # Below is the default command.  You can uncomment it to override the
-    # number of workers, for example:
-    # command: "gunicorn -w 8 --preload -b 0.0.0.0:8000
-    #   -k uvicorn.workers.UvicornWorker openslides.asgi:application"
-    #
-    # Uncomment the following line to use daphne instead of gunicorn:
-    # command: "daphne -b 0.0.0.0 -p 8000 openslides.asgi:application"
     environment:
       << : *default-osserver-env
     secrets:
@@ -128,11 +139,24 @@ services:
   client:
     image: FRONTEND_IMAGE
     networks:
-      - front
-    ports:
-      - "0.0.0.0:ifenvelse(`EXTERNAL_HTTP_PORT', 8000):80"
+      - back
     deploy:
       replicas: ifenvelse(`OPENSLIDES_FRONTEND_SERVICE_REPLICAS', 1)
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  autoupdate:
+    image: AUTOUPDATE_IMAGE
+    environment:
+      REDIS_WRITE_HOST: redis
+      MESSAGE_BUS_HOST: redis-slave
+    networks:
+      - back
+    secrets:
+      - django
+    deploy:
+      replicas: ifenvelse(`OPENSLIDES_AUTOUPDATE_SERVICE_REPLICAS', 1)
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -206,9 +230,7 @@ ifelse(read_env(`PGNODE_3_ENABLED'), 1, `'
   redis:
     image: redis:alpine
     networks:
-      back:
-        aliases:
-          - rediscache
+      - back
     deploy:
       replicas: 1
       restart_policy:
@@ -218,38 +240,26 @@ ifelse(read_env(`PGNODE_3_ENABLED'), 1, `'
     image: redis:alpine
     command: ["redis-server", "--save", "", "--slaveof", "redis", "6379"]
     networks:
-      back:
-        aliases:
-          - rediscache-slave
+      - back
     deploy:
-      replicas: ifenvelse(`REDIS_RO_SERVICE_REPLICAS', 3)
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-  redis-channels:
-    image: redis:alpine
-    networks:
-      back:
-    deploy:
-      replicas: 1
+      replicas: ifenvelse(`REDIS_RO_SERVICE_REPLICAS', 1)
       restart_policy:
         condition: on-failure
         delay: 5s
   media:
-    image: ifenvelse(`DEFAULT_DOCKER_REGISTRY', openslides)/openslides-media-service:latest
+    image: ifenvelse(`DEFAULT_DOCKER_REGISTRY', openslides)/openslides-media:latest
     environment:
       - CHECK_REQUEST_URL=server:8000/check-media/
       - CACHE_SIZE=ifenvelse(`CACHE_SIZE', 10)
       - CACHE_DATA_MIN_SIZE_KB=ifenvelse(`CACHE_DATA_MIN_SIZE_KB', 0)
       - CACHE_DATA_MAX_SIZE_KB=ifenvelse(`CACHE_DATA_MAX_SIZE_KB', 10240)
     deploy:
-      replicas: ifenvelse(`MEDIA_SERVICE_REPLICAS', 8)
+      replicas: ifenvelse(`MEDIA_SERVICE_REPLICAS', 2)
       restart_policy:
         condition: on-failure
         delay: 10s
     networks:
-      front:
-      back:
+      - back
     # Override command to run more workers per task
     # command: ["gunicorn", "-w", "4", "--preload", "-b",
     #   "0.0.0.0:8000", "src.mediaserver:app"]

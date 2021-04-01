@@ -537,9 +537,7 @@
                     type="button"
                     mat-button
                     [matMenuTriggerFor]="changeRecoMenu"
-                    *ngIf="
-                        motion && (hasChangingObjects() || motion.modified_final_version)
-                    "
+                    *ngIf="motion && (hasChangingObjects() || motion.modified_final_version)"
                 >
                     <mat-icon>rate_review</mat-icon>
                     &nbsp;<span>{{ verboseChangeRecoMode[crMode] | translate }}</span>
@@ -670,7 +668,9 @@
         </div>
 
         <!-- Text (hide preamble, if diff mode. The preample is included in the motion-detail-diff component) -->
-        <span *ngIf="showPreamble && !isRecoMode(ChangeRecoMode.Diff)" class="text-prefix-label">{{ preamble | translate }}</span>
+        <span *ngIf="showPreamble && !isRecoMode(ChangeRecoMode.Diff)" class="text-prefix-label">{{
+            preamble | translate
+        }}</span>
 
         <!-- Regular motions or traditional amendments -->
         <ng-container *ngIf="!editMotion && !motion.isStatuteAmendment() && !motion.isParagraphBasedAmendment()">
@@ -768,6 +768,10 @@
                 >
                     {{ 'This field is required.' | translate }}
                 </div>
+            </section>
+            <section *ngFor="let paragraph of contentForm.value.broken_paragraphs">
+                <em class="red-warning-text">{{ 'This paragraph does not exist in the main motion anymore:' | translate }}</em>
+                <div class="motion-text" [innerHTML]="paragraph | trust: 'html'"></div>
             </section>
         </ng-container>
 
@@ -900,9 +904,12 @@
                 <i *ngIf="motion.parent">{{ 'No changes at the text.' | translate }}</i>
                 <i *ngIf="!motion.parent">{{ 'The parent motion was deleted.' | translate }}</i>
             </div>
+            <div class="alert alert-info alert-inconsistency" *ngIf="amendmentErrorMessage">
+                <i [innerHTML]="amendmentErrorMessage"></i>
+            </div>
             <ng-container *ngIf="motion.parent && !isRecoMode(ChangeRecoMode.Diff) && !isFinalEdit">
                 <div
-                    *ngFor="let paragraph of getAmendmentParagraphs()"
+                    *ngFor="let paragraph of getAmendmentParagraphs(); trackBy: trackByIndex"
                     class="motion-text motion-text-diff amendment-view"
                     [class.line-numbers-none]="isLineNumberingNone()"
                     [class.line-numbers-inline]="isLineNumberingInline()"

@@ -1,6 +1,5 @@
 import pytest
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
@@ -14,12 +13,8 @@ from openslides.core.models import Countdown
 from openslides.mediafiles.models import Mediafile
 from openslides.motions.models import Motion, MotionBlock
 from openslides.topics.models import Topic
-from openslides.users.models import Group
-from openslides.utils.autoupdate import inform_changed_data
 from tests.count_queries import count_queries
 from tests.test_case import TestCase
-
-from ...common_groups import GROUP_DEFAULT_PK
 
 
 @pytest.mark.django_db(transaction=False)
@@ -106,24 +101,14 @@ class ContentObjects(TestCase):
 
         assert topic.agenda_item is not None
         assert topic.list_of_speakers is not None
-        response = self.client.get(reverse("item-detail", args=[topic.agenda_item.pk]))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response = self.client.get(
-            reverse("listofspeakers-detail", args=[topic.list_of_speakers.pk])
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_delete_topic(self):
         topic = Topic.objects.create(title="test_title_lwOCK32jZGFb37DpmoP(")
         item_id = topic.agenda_item_id
         list_of_speakers_id = topic.list_of_speakers_id
         topic.delete()
-        response = self.client.get(reverse("item-detail", args=[item_id]))
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        response = self.client.get(
-            reverse("listofspeakers-detail", args=[list_of_speakers_id])
-        )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(Item.objects.filter(pk=item_id).exists())
+        self.assertFalse(ListOfSpeakers.objects.filter(pk=list_of_speakers_id).exists())
 
     def test_prevent_removing_topic_from_agenda(self):
         topic = Topic.objects.create(title="test_title_lwOCK32jZGFb37DpmoP(")
@@ -183,105 +168,6 @@ class ContentObjects(TestCase):
         motion = Motion.objects.get()
         self.assertTrue(motion.agenda_item is not None)
         self.assertEqual(motion.agenda_item_id, motion.agenda_item.id)
-
-
-class RetrieveItem(TestCase):
-    """
-    Tests retrieving items.
-    """
-
-    def setUp(self):
-        self.client = APIClient()
-        config["general_system_enable_anonymous"] = True
-        self.item = Topic.objects.create(
-            title="test_title_Idais2pheepeiz5uph1c"
-        ).agenda_item
-
-    def test_normal_by_anonymous_without_perm_to_see_internal_items(self):
-        group = get_user_model().groups.field.related_model.objects.get(
-            pk=GROUP_DEFAULT_PK
-        )
-        permission_string = "agenda.can_see_internal_items"
-        app_label, codename = permission_string.split(".")
-        permission = group.permissions.get(
-            content_type__app_label=app_label, codename=codename
-        )
-        group.permissions.remove(permission)
-        self.item.type = Item.AGENDA_ITEM
-        self.item.save()
-        response = self.client.get(reverse("item-detail", args=[self.item.pk]))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_hidden_by_anonymous_without_manage_perms(self):
-        response = self.client.get(reverse("item-detail", args=[self.item.pk]))
-        self.assertEqual(response.status_code, 404)
-
-    def test_hidden_by_anonymous_with_manage_perms(self):
-        group = Group.objects.get(pk=GROUP_DEFAULT_PK)
-        permission_string = "agenda.can_manage"
-        app_label, codename = permission_string.split(".")
-        permission = Permission.objects.get(
-            content_type__app_label=app_label, codename=codename
-        )
-        group.permissions.add(permission)
-        inform_changed_data(group)
-        response = self.client.get(reverse("item-detail", args=[self.item.pk]))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_internal_by_anonymous_without_perm_to_see_internal_items(self):
-        group = Group.objects.get(pk=GROUP_DEFAULT_PK)
-        permission_string = "agenda.can_see_internal_items"
-        app_label, codename = permission_string.split(".")
-        permission = group.permissions.get(
-            content_type__app_label=app_label, codename=codename
-        )
-        group.permissions.remove(permission)
-        inform_changed_data(group)
-        self.item.type = Item.INTERNAL_ITEM
-        self.item.save()
-        response = self.client.get(reverse("item-detail", args=[self.item.pk]))
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_normal_by_anonymous_cant_see_agenda_comments(self):
-        self.item.type = Item.AGENDA_ITEM
-        self.item.comment = "comment_gbiejd67gkbmsogh8374jf$kd"
-        self.item.save()
-        response = self.client.get(reverse("item-detail", args=[self.item.pk]))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data.get("comment") is None)
-
-
-class RetrieveListOfSpeakers(TestCase):
-    """
-    Tests retrieving list of speakers.
-    """
-
-    def setUp(self):
-        self.client = APIClient()
-        config["general_system_enable_anonymous"] = True
-        self.list_of_speakers = Topic.objects.create(
-            title="test_title_qsjem(ZUNfp7egnzp37n"
-        ).list_of_speakers
-
-    def test_simple(self):
-        response = self.client.get(
-            reverse("listofspeakers-detail", args=[self.list_of_speakers.pk])
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_without_permission(self):
-        group = Group.objects.get(pk=GROUP_DEFAULT_PK)
-        permission_string = "agenda.can_see_list_of_speakers"
-        app_label, codename = permission_string.split(".")
-        permission = Permission.objects.get(
-            content_type__app_label=app_label, codename=codename
-        )
-        group.permissions.remove(permission)
-        inform_changed_data(group)
-        response = self.client.get(
-            reverse("listofspeakers-detail", args=[self.list_of_speakers.pk])
-        )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class ManageSpeaker(TestCase):
@@ -373,7 +259,7 @@ class ManageSpeaker(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Speaker.objects.all().count(), 1)
         self.assertTrue(Speaker.objects.get().point_of_order)
-        self.assertEqual(Speaker.objects.get().weight, -1)
+        self.assertEqual(Speaker.objects.get().weight, 1)
 
     def test_point_of_order_not_enabled(self):
         self.assertEqual(Speaker.objects.all().count(), 0)
@@ -384,7 +270,7 @@ class ManageSpeaker(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Speaker.objects.all().count(), 0)
 
-    def test_point_of_order_before_other(self):
+    def test_point_of_order_before_normal(self):
         config["agenda_enable_point_of_order_speakers"] = True
         normal_speaker = Speaker.objects.add(self.user, self.list_of_speakers)
         response = self.client.post(
@@ -397,7 +283,7 @@ class ManageSpeaker(TestCase):
         self.assertTrue(poo_speaker.point_of_order)
         self.assertEqual(poo_speaker.weight, normal_speaker.weight - 1)
 
-    def test_point_of_order_with_normal_speaker(self):
+    def test_point_of_order_with_same_normal_speaker(self):
         config["agenda_enable_point_of_order_speakers"] = True
         Speaker.objects.add(self.admin, self.list_of_speakers)
         response = self.client.post(
@@ -406,7 +292,127 @@ class ManageSpeaker(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Speaker.objects.all().count(), 2)
-        self.assertTrue(Speaker.objects.filter(user=self.admin).count(), 2)
+        self.assertEqual(Speaker.objects.filter(user=self.admin).count(), 2)
+
+    def test_point_of_order_two_poo_speakers(self):
+        """
+        before (poo):
+            - user (y)
+            - user2 (n)
+            - user3 (n)
+
+        after adding admin as poo speaker:
+            - user (y)
+            - admin (y)
+            - user2 (n)
+            - user3 (n)
+        """
+        config["agenda_enable_point_of_order_speakers"] = True
+        # user 2 and user3 are non-poo speakers
+        self.user2, _ = self.create_user()
+        self.user3, _ = self.create_user()
+        Speaker.objects.add(self.user2, self.list_of_speakers)
+        Speaker.objects.add(self.user3, self.list_of_speakers)
+        Speaker.objects.add(self.user, self.list_of_speakers, point_of_order=True)
+        self.assertEqual(Speaker.objects.get(user=self.user).weight, 0)
+        self.assertEqual(Speaker.objects.get(user=self.user2).weight, 1)
+        self.assertEqual(Speaker.objects.get(user=self.user3).weight, 2)
+        response = self.client.post(
+            reverse("listofspeakers-manage-speaker", args=[self.list_of_speakers.pk]),
+            {"point_of_order": True},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Speaker.objects.all().count(), 4)
+        self.assertEqual(Speaker.objects.get(user=self.user).weight, 0)
+        self.assertEqual(Speaker.objects.get(user=self.admin).weight, 1)
+        self.assertEqual(Speaker.objects.get(user=self.user2).weight, 2)
+        self.assertEqual(Speaker.objects.get(user=self.user3).weight, 3)
+
+    def test_point_of_order_two_poo_speakers_different_ordering(self):
+        """
+        before (poo):
+            - user (n)
+            - user2 (y)
+            - user3 (n)
+
+        after adding admin as poo speaker (no weight modifications of other speakers!)
+            - admin (y)
+            - user (n)
+            - user2 (y)
+            - user3 (n)
+        """
+        config["agenda_enable_point_of_order_speakers"] = True
+        # user 2 and user3 are non-poo speakers
+        self.user2, _ = self.create_user()
+        self.user3, _ = self.create_user()
+        s_user = Speaker.objects.add(self.user, self.list_of_speakers)
+        s_user2 = Speaker.objects.add(
+            self.user2, self.list_of_speakers, point_of_order=True
+        )
+        s_user3 = Speaker.objects.add(self.user3, self.list_of_speakers)
+
+        # set different ordering
+        s_user.weight = 0
+        s_user.save()
+        s_user2.weight = 1
+        s_user2.save()
+        s_user3.weight = 2
+        s_user3.save()
+
+        response = self.client.post(
+            reverse("listofspeakers-manage-speaker", args=[self.list_of_speakers.pk]),
+            {"point_of_order": True},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Speaker.objects.all().count(), 4)
+        self.assertEqual(Speaker.objects.get(user=self.admin).weight, -1)
+        self.assertEqual(Speaker.objects.get(user=self.user).weight, 0)
+        self.assertEqual(Speaker.objects.get(user=self.user2).weight, 1)
+        self.assertEqual(Speaker.objects.get(user=self.user3).weight, 2)
+
+    def test_point_of_order_three_poo_speakers(self):
+        """
+        before (poo):
+            - user (y)
+            - user2 (n)
+            - user3 (y)
+
+        after adding admin as poo speaker (there are weight modifications of other speakers!)
+            - user (y)
+            - admin (y)
+            - user2 (n)
+            - user3 (y)
+        """
+        config["agenda_enable_point_of_order_speakers"] = True
+        # user 2 and user3 are non-poo speakers
+        self.user2, _ = self.create_user()
+        self.user3, _ = self.create_user()
+        s_user = Speaker.objects.add(
+            self.user, self.list_of_speakers, point_of_order=True
+        )
+        s_user2 = Speaker.objects.add(self.user2, self.list_of_speakers)
+        s_user3 = Speaker.objects.add(
+            self.user3, self.list_of_speakers, point_of_order=True
+        )
+
+        # set different ordering
+        s_user.weight = 0
+        s_user.save()
+        s_user2.weight = 1
+        s_user2.save()
+        s_user3.weight = 2
+        s_user3.save()
+
+        response = self.client.post(
+            reverse("listofspeakers-manage-speaker", args=[self.list_of_speakers.pk]),
+            {"point_of_order": True},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Speaker.objects.all().count(), 4)
+        self.assertEqual(Speaker.objects.get(user=self.user).weight, 0)
+        self.assertEqual(Speaker.objects.get(user=self.admin).weight, 1)
+        self.assertEqual(Speaker.objects.get(user=self.user2).weight, 2)
+        self.assertEqual(Speaker.objects.get(user=self.user3).weight, 3)
 
     def test_point_of_order_twice(self):
         config["agenda_enable_point_of_order_speakers"] = True

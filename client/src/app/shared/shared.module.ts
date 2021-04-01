@@ -115,6 +115,7 @@ import { ChartsComponent } from './components/charts/charts.component';
 import { CheckInputComponent } from './components/check-input/check-input.component';
 import { BannerComponent } from './components/banner/banner.component';
 import { PollFormComponent } from 'app/site/polls/components/poll-form/poll-form.component';
+import { EntitledUsersTableComponent } from 'app/site/polls/components/entitled-users-table/entitled-users-table.component';
 import { MotionPollDialogComponent } from 'app/site/motions/modules/motion-poll/motion-poll-dialog/motion-poll-dialog.component';
 import { ParsePollNumberPipe } from './pipes/parse-poll-number.pipe';
 import { ReversePipe } from './pipes/reverse.pipe';
@@ -127,9 +128,12 @@ import { AssignmentPollDetailContentComponent } from './components/assignment-po
 import { GlobalSpinnerComponent } from './components/global-spinner/global-spinner.component';
 import { UserMenuComponent } from './components/user-menu/user-menu.component';
 import { JitsiComponent } from './components/jitsi/jitsi.component';
-import { VjsPlayerComponent } from './components/vjs-player/vjs-player.component';
-import { LiveStreamComponent } from './components/live-stream/live-stream.component';
+import { VideoPlayerComponent } from './components/video-player/video-player.component';
 import { ListOfSpeakersContentComponent } from './components/list-of-speakers-content/list-of-speakers-content.component';
+import { ApplauseBarDisplayComponent } from './components/applause-bar-display/applause-bar-display.component';
+import { ProgressComponent } from './components/progress/progress.component';
+import { NgParticlesModule } from 'ng-particles';
+import { ApplauseParticleDisplayComponent } from './components/applause-particle-display/applause-particle-display.component';
 
 /**
  * Share Module for all "dumb" components and pipes.
@@ -194,7 +198,8 @@ import { ListOfSpeakersContentComponent } from './components/list-of-speakers-co
         PblNgridTargetEventsModule,
         PdfViewerModule,
         NgxMaterialTimepickerModule,
-        ChartsModule
+        ChartsModule,
+        NgParticlesModule
     ],
     exports: [
         FormsModule,
@@ -289,6 +294,7 @@ import { ListOfSpeakersContentComponent } from './components/list-of-speakers-co
         CheckInputComponent,
         BannerComponent,
         PollFormComponent,
+        EntitledUsersTableComponent,
         MotionPollDialogComponent,
         ParsePollNumberPipe,
         ReversePipe,
@@ -298,8 +304,7 @@ import { ListOfSpeakersContentComponent } from './components/list-of-speakers-co
         MotionPollDetailContentComponent,
         AssignmentPollDetailContentComponent,
         JitsiComponent,
-        VjsPlayerComponent,
-        LiveStreamComponent,
+        VideoPlayerComponent,
         ListOfSpeakersContentComponent
     ],
     declarations: [
@@ -353,6 +358,7 @@ import { ListOfSpeakersContentComponent } from './components/list-of-speakers-co
         CheckInputComponent,
         BannerComponent,
         PollFormComponent,
+        EntitledUsersTableComponent,
         MotionPollDialogComponent,
         ParsePollNumberPipe,
         ReversePipe,
@@ -362,9 +368,11 @@ import { ListOfSpeakersContentComponent } from './components/list-of-speakers-co
         MotionPollDetailContentComponent,
         AssignmentPollDetailContentComponent,
         JitsiComponent,
-        VjsPlayerComponent,
-        LiveStreamComponent,
-        ListOfSpeakersContentComponent
+        VideoPlayerComponent,
+        ListOfSpeakersContentComponent,
+        ApplauseBarDisplayComponent,
+        ProgressComponent,
+        ApplauseParticleDisplayComponent
     ],
     providers: [
         {

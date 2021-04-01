@@ -5,6 +5,8 @@ from openslides.utils.plugins import collect_plugins
 
 MODULE_DIR = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
 
+# This is not set to the docker environment
+OPENSLIDES_USER_DATA_DIR = "/app/personal_data/var"
 
 # Application definition
 
@@ -16,15 +18,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.staticfiles",
     "rest_framework",
-    "channels",
     "openslides.agenda",
     "openslides.topics",
     "openslides.motions",
     "openslides.assignments",
     "openslides.mediafiles",
+    "openslides.chat",
 ]
 
-INSTALLED_PLUGINS = collect_plugins()  # Adds all automaticly collected plugins
+INSTALLED_PLUGINS = collect_plugins()  # Adds all automatically collected plugins
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -34,7 +36,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "openslides.utils.autoupdate.AutoupdateBundleMiddleware",
+    "openslides.utils.autoupdate_bundle.AutoupdateBundleMiddleware",
 ]
 
 ROOT_URLCONF = "openslides.urls"
@@ -48,6 +50,8 @@ TEMPLATES = [
         "APP_DIRS": True,
     }
 ]
+
+SESSION_ENGINE = "openslides.utils.sessions"
 
 # Email
 # https://docs.djangoproject.com/en/1.10/topics/email/
@@ -84,20 +88,31 @@ LOCALE_PATHS = [os.path.join(MODULE_DIR, "locale")]
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/1.10/howto/static-files/
 
 STATIC_URL = "/static/"
 
-STATICFILES_DIRS = [os.path.join(MODULE_DIR, "static")]
+STATICFILES_DIRS = [os.path.join(MODULE_DIR, "static")] + [
+    os.path.join(OPENSLIDES_USER_DATA_DIR, "static")
+]
 
+# Static files (CSS, JavaScript, Images)
+STATIC_ROOT = os.path.join(OPENSLIDES_USER_DATA_DIR, "collected-static")
+
+# Files
+# https://docs.djangoproject.com/en/2.2/topics/files/
+MEDIA_ROOT = os.path.join(OPENSLIDES_USER_DATA_DIR, "media", "")
+
+MEDIA_URL = "/media/"
 
 # Sessions and user authentication
-# https://docs.djangoproject.com/en/1.10/topics/http/sessions/
-# https://docs.djangoproject.com/en/1.10/topics/auth/
+# https://docs.djangoproject.com/en/2.2/topics/http/sessions/
+# https://docs.djangoproject.com/en/2.2/topics/auth/
 
 AUTH_USER_MODEL = "users.User"
 
 AUTH_GROUP_MODEL = "users.Group"
+
+AUTHENTICATION_BACKENDS = ["openslides.utils.auth_backend.ModelBackend"]
 
 SESSION_COOKIE_NAME = "OpenSlidesSessionID"
 
@@ -114,21 +129,6 @@ PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
     "django.contrib.auth.hashers.BCryptPasswordHasher",
 ]
-
-
-# Files
-# https://docs.djangoproject.com/en/1.10/topics/files/
-
-MEDIA_URL = "/media/"
-
-
-# Django Channels
-# http://channels.readthedocs.io/en/latest/
-
-ASGI_APPLICATION = "openslides.routing.application"
-
-CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
-
 
 # Enable updating the last_login field for users on every login.
 ENABLE_LAST_LOGIN_FIELD = False

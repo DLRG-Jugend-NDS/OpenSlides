@@ -215,7 +215,7 @@ export class MotionRepositoryService extends BaseIsAgendaItemAndListOfSpeakersCo
         dataSend: DataSendService,
         mapperService: CollectionStringMapperService,
         viewModelStoreService: ViewModelStoreService,
-        translate: TranslateService,
+        protected translate: TranslateService,
         relationManager: RelationManagerService,
         config: ConfigService,
         private httpService: HttpService,
@@ -336,13 +336,18 @@ export class MotionRepositoryService extends BaseIsAgendaItemAndListOfSpeakersCo
                     const changeRecos = viewMotion.changeRecommendations.filter(changeReco =>
                         changeReco.showInFinalView()
                     );
-                    return this.getAmendmentParagraphLines(
-                        viewMotion,
-                        this.motionLineLength,
-                        ChangeRecoMode.Changed,
-                        changeRecos,
-                        false
-                    );
+                    try {
+                        return this.getAmendmentParagraphLines(
+                            viewMotion,
+                            this.motionLineLength,
+                            ChangeRecoMode.Changed,
+                            changeRecos,
+                            false
+                        );
+                    } catch (e) {
+                        // Inconsistency between motion and amendment -> the best we can do is not to fail completely
+                        return [];
+                    }
                 } else {
                     return [];
                 }
@@ -810,6 +815,16 @@ export class MotionRepositoryService extends BaseIsAgendaItemAndListOfSpeakersCo
             let paragraph: string;
             let paragraphHasChanges;
 
+            if (baseParagraphs[paraNo] === undefined) {
+                const msg =
+                    this.translate.instant('Inconsistent data.') +
+                    ' ' +
+                    this.translate.instant('An amendment is probably referring to a non-existant line number.') +
+                    ' ' +
+                    this.translate.instant('You can back up its content when editing it and delete it afterwards.');
+                return '<em style="color: red; font-weight: bold;">' + msg + '</em>';
+            }
+
             if (newText === null) {
                 paragraph = baseParagraphs[paraNo];
                 paragraphHasChanges = false;
@@ -855,6 +870,7 @@ export class MotionRepositoryService extends BaseIsAgendaItemAndListOfSpeakersCo
      * @param {ViewMotionChangeRecommendation[]} changeRecommendations
      * @param {boolean} includeUnchanged
      * @returns {DiffLinesInParagraph}
+     * @throws Error
      */
     public getAmendmentParagraphLines(
         amendment: ViewMotion,
@@ -876,7 +892,15 @@ export class MotionRepositoryService extends BaseIsAgendaItemAndListOfSpeakersCo
         return amendmentParagraphs
             ?.map(
                 (newText: string, paraNo: number): DiffLinesInParagraph => {
-                    if (newText !== null) {
+                    if (baseParagraphs[paraNo] === undefined) {
+                        throw new Error(
+                            this.translate.instant('Inconsistent data.') +
+                                ' ' +
+                                this.translate.instant(
+                                    'An amendment is probably referring to a non-existant line number.'
+                                )
+                        );
+                    } else if (newText !== null) {
                         return this.diff.getAmendmentParagraphsLines(
                             paraNo,
                             baseParagraphs[paraNo],
@@ -950,6 +974,16 @@ export class MotionRepositoryService extends BaseIsAgendaItemAndListOfSpeakersCo
                     if (newText === null) {
                         return null;
                     }
+                    if (baseParagraphs[paraNo] === undefined) {
+                        console.error(
+                            this.translate.instant('Inconsistent data.') +
+                                ' ' +
+                                this.translate.instant(
+                                    'An amendment is probably referring to a non-existant line number.'
+                                )
+                        );
+                        return null;
+                    }
 
                     const origText = baseParagraphs[paraNo],
                         diff = this.diff.diff(origText, newText),
@@ -990,6 +1024,13 @@ export class MotionRepositoryService extends BaseIsAgendaItemAndListOfSpeakersCo
 
         return (amendment.amendment_paragraphs || []).map((newText: string, paraNo: number): string => {
             const origText = baseParagraphs[paraNo];
+            if (origText === undefined) {
+                throw new Error(
+                    this.translate.instant('Inconsistent data.') +
+                        ' ' +
+                        this.translate.instant('An amendment is probably referring to a non-existant line number.')
+                );
+            }
 
             if (newText === null) {
                 return origText;
@@ -1144,5 +1185,41 @@ export class MotionRepositoryService extends BaseIsAgendaItemAndListOfSpeakersCo
                 );
             }).length > 0
         );
+    }
+
+    /**
+     * Tries to determine the realistic CR-Mode from a given CR mode
+     */
+    public determineCrMode(
+        mode: ChangeRecoMode,
+        hasChangingObjects: boolean,
+        isModifiedFinalVersion: boolean,
+        isParagraphBasedAmendment: boolean,
+        hasChangeRecommendations: boolean
+    ): ChangeRecoMode {
+        if (mode === ChangeRecoMode.Final) {
+            if (isModifiedFinalVersion) {
+                return ChangeRecoMode.ModifiedFinal;
+                /**
+                 * Because without change recos you cannot escape the final version anymore
+                 */
+            } else if (!hasChangingObjects) {
+                return ChangeRecoMode.Original;
+            }
+        } else if (mode === ChangeRecoMode.Changed && !hasChangingObjects) {
+            /**
+             * Because without change recos you cannot escape the changed version view
+             * You will not be able to automatically change to the Changed view after creating
+             * a change reco. The autoupdate has to come "after" this routine
+             */
+            return ChangeRecoMode.Original;
+        } else if (mode === ChangeRecoMode.Diff && !hasChangeRecommendations && isParagraphBasedAmendment) {
+            /**
+             * The Diff view for paragraph-based amendments is only relevant for change recommendations;
+             * the regular amendment changes are shown in the "original" view.
+             */
+            return ChangeRecoMode.Original;
+        }
+        return mode;
     }
 }

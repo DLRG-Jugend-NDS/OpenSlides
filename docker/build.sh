@@ -6,7 +6,9 @@ declare -A TARGETS
 TARGETS=(
   [client]="$(dirname "${BASH_SOURCE[0]}")/../client/docker/"
   [server]="$(dirname "${BASH_SOURCE[0]}")/../server/docker/"
-  [media-service]="https://github.com/OpenSlides/openslides-media-service.git"
+  [proxy]="$(dirname "${BASH_SOURCE[0]}")/../caddy/"
+  [autoupdate]="$(dirname "${BASH_SOURCE[0]}")/../autoupdate/"
+  [media]="https://github.com/OpenSlides/openslides-media-service.git"
   [pgbouncer]="https://github.com/OpenSlides/openslides-docker-compose.git#:pgbouncer"
   [postfix]="https://github.com/OpenSlides/openslides-docker-compose.git#:postfix"
   [repmgr]="https://github.com/OpenSlides/openslides-docker-compose.git#:repmgr"
@@ -17,7 +19,7 @@ DOCKER_TAG="latest"
 CONFIG="/etc/osinstancectl"
 OPTIONS=()
 BUILT_IMAGES=()
-DEFAULT_TARGETS=(server client)
+DEFAULT_TARGETS=(server client autoupdate)
 
 usage() {
   cat << EOF

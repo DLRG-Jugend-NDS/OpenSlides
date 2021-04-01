@@ -430,6 +430,8 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
 
     public recommendationReferencingMotions: ViewMotion[] = [];
 
+    public amendmentErrorMessage: string = null;
+
     /**
      * Constructs the detail view.
      *
@@ -641,7 +643,13 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
     }
 
     private resetCrMode(): void {
-        this.crMode = this.determineCrMode(this.defaultCrMode);
+        this.crMode = this.repo.determineCrMode(
+            this.defaultCrMode,
+            this.hasChangingObjects(),
+            !!this.motion?.modified_final_version,
+            this.motion?.isParagraphBasedAmendment(),
+            this.changeRecommendations?.length > 0
+        );
     }
 
     /**
@@ -718,7 +726,13 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
         // first in this case (in the config-listener) and perform the actual check if "diff" is possible now.
         // Test: "diff" as default view. Open a motion, create an amendment. "Original" should be set automatically.
         if (this.crMode) {
-            this.crMode = this.determineCrMode(this.crMode);
+            this.crMode = this.repo.determineCrMode(
+                this.crMode,
+                this.hasChangingObjects(),
+                !!this.motion?.modified_final_version,
+                this.motion?.isParagraphBasedAmendment(),
+                this.changeRecommendations?.length > 0
+            );
         }
 
         this.cd.markForCheck();
@@ -816,6 +830,7 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
 
         if (formMotion.isParagraphBasedAmendment()) {
             contentPatch.selected_paragraphs = [];
+            contentPatch.broken_paragraphs = [];
             const parentMotion = this.repo.getViewModel(formMotion.parent_id);
             // Hint: lineLength is sometimes not loaded yet when this form is initialized;
             // This doesn't hurt as long as patchForm is called when editing mode is started, i.e., later.
@@ -833,6 +848,18 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
                         contentPatch['text_' + paragraphNo] = formMotion.amendment_paragraphs[paragraphNo];
                     }
                 });
+
+                // If the motion has been shortened after the amendment has been created, we will show the paragraphs
+                // of the amendment as read-only
+                for (
+                    let paragraphNo = paragraphsToChoose.length;
+                    paragraphNo < formMotion.amendment_paragraphs.length;
+                    paragraphNo++
+                ) {
+                    if (formMotion.amendment_paragraphs[paragraphNo] !== null) {
+                        contentPatch.broken_paragraphs.push(formMotion.amendment_paragraphs[paragraphNo]);
+                    }
+                }
             }
         }
 
@@ -867,6 +894,7 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
             tags_id: [],
             origin: [''],
             selected_paragraphs: [],
+            broken_paragraphs: [],
             statute_amendment: [''], // Internal value for the checkbox, not saved to the model
             statute_paragraph_id: [''],
             motion_block_id: [],
@@ -1039,15 +1067,21 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
      * TODO: Cleanup: repo function could be injected part of the model, to have easier access
      *
      * @returns {DiffLinesInParagraph[]}
+     * @throws Error
      */
     public getAmendmentParagraphs(): DiffLinesInParagraph[] {
-        return this.repo.getAmendmentParagraphLines(
-            this.motion,
-            this.lineLength,
-            this.crMode,
-            this.changeRecommendations,
-            this.showAmendmentContext
-        );
+        try {
+            this.amendmentErrorMessage = null;
+            return this.repo.getAmendmentParagraphLines(
+                this.motion,
+                this.lineLength,
+                this.crMode,
+                this.changeRecommendations,
+                this.showAmendmentContext
+            );
+        } catch (e) {
+            this.amendmentErrorMessage = e.toString();
+        }
     }
 
     public getAmendmentParagraphLinesTitle(paragraph: DiffLinesInParagraph): string {
@@ -1209,17 +1243,22 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
             changeRecommendation: null
         };
         if (this.motion.isParagraphBasedAmendment()) {
-            const lineNumberedParagraphs = this.repo.getAllAmendmentParagraphsWithOriginalLineNumbers(
-                this.motion,
-                this.lineLength,
-                false
-            );
-            data.changeRecommendation = this.changeRecoRepo.createAmendmentChangeRecommendationTemplate(
-                this.motion,
-                lineNumberedParagraphs,
-                lineRange,
-                this.lineLength
-            );
+            try {
+                const lineNumberedParagraphs = this.repo.getAllAmendmentParagraphsWithOriginalLineNumbers(
+                    this.motion,
+                    this.lineLength,
+                    false
+                );
+                data.changeRecommendation = this.changeRecoRepo.createAmendmentChangeRecommendationTemplate(
+                    this.motion,
+                    lineNumberedParagraphs,
+                    lineRange,
+                    this.lineLength
+                );
+            } catch (e) {
+                console.error(e);
+                return;
+            }
         } else {
             data.changeRecommendation = this.changeRecoRepo.createMotionChangeRecommendationTemplate(
                 this.motion,
@@ -1337,6 +1376,7 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
             this.patchForm(this.motion);
             this.editNotificationSubscription = this.listenToEditNotification();
             this.sendEditNotification(MotionEditNotificationType.TYPE_BEGIN_EDITING_MOTION);
+            this.showMotionEditConflictWarningIfNecessary();
         }
         if (!mode && this.newMotion) {
             this.router.navigate(['./motions/']);
@@ -1345,6 +1385,15 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
         // notify the users who are still editing the same motion
         if (!mode && !this.newMotion) {
             this.unsubscribeEditNotifications(MotionEditNotificationType.TYPE_CLOSING_EDITING_MOTION);
+        }
+    }
+
+    public showMotionEditConflictWarningIfNecessary(): void {
+        if (this.amendments?.filter(amend => amend.isParagraphBasedAmendment()).length > 0) {
+            const msg = this.translate.instant(
+                'Warning: Amendments exist for this motion. Editing this text will likely impact them negatively. Particularily, amendments might become unusable if the paragraph they affect is deleted.'
+            );
+            this.raiseWarning(msg);
         }
     }
 
@@ -1598,40 +1647,6 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
     }
 
     /**
-     * Tries to determine the realistic CR-Mode from a given CR mode
-     */
-    private determineCrMode(mode: ChangeRecoMode): ChangeRecoMode {
-        if (mode === ChangeRecoMode.Final) {
-            if (this.motion?.modified_final_version) {
-                return ChangeRecoMode.ModifiedFinal;
-                /**
-                 * Because without change recos you cannot escape the final version anymore
-                 */
-            } else if (!this.hasChangingObjects()) {
-                return ChangeRecoMode.Original;
-            }
-        } else if (mode === ChangeRecoMode.Changed && !this.hasChangingObjects()) {
-            /**
-             * Because without change recos you cannot escape the changed version view
-             * You will not be able to automatically change to the Changed view after creating
-             * a change reco. The autoupdate has to come "after" this routine
-             */
-            return ChangeRecoMode.Original;
-        } else if (
-            mode === ChangeRecoMode.Diff &&
-            !this.changeRecommendations?.length &&
-            this.motion?.isParagraphBasedAmendment()
-        ) {
-            /**
-             * The Diff view for paragraph-based amendments is only relevant for change recommendations;
-             * the regular amendment changes are shown in the "original" view.
-             */
-            return ChangeRecoMode.Original;
-        }
-        return mode;
-    }
-
-    /**
      * Function to listen to notifications if the user edits this motion.
      * Handles the notification messages.
      *
@@ -1639,7 +1654,7 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
      */
     private listenToEditNotification(): Subscription {
         return this.notifyService.getMessageObservable(this.NOTIFICATION_EDIT_MOTION).subscribe(message => {
-            const content = <MotionEditNotification>message.content;
+            const content = <MotionEditNotification>message.message;
             if (this.operator.viewUser.id !== content.senderId && content.motionId === this.motion.id) {
                 let warning = '';
 
@@ -1656,7 +1671,7 @@ export class MotionDetailComponent extends BaseViewComponentDirective implements
                         if (content.type === MotionEditNotificationType.TYPE_BEGIN_EDITING_MOTION) {
                             this.sendEditNotification(
                                 MotionEditNotificationType.TYPE_ALSO_EDITING_MOTION,
-                                message.senderUserId
+                                message.sender_user_id
                             );
                         }
                         break;

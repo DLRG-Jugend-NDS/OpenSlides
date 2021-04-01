@@ -3,8 +3,12 @@ import { Directive, ElementRef, Input, OnInit } from '@angular/core';
 import { ResizeSensor } from 'css-element-queries';
 import { Subject } from 'rxjs';
 
+export interface ElementSize {
+    width: number;
+    height: number;
+}
 /**
- * This directive takes a Subject<void> as input and everytime the surrounding element
+ * This directive takes a Subject<ElementSize> as input and everytime the surrounding element
  * was resized, the subject is fired.
  *
  * Usage:
@@ -15,7 +19,7 @@ import { Subject } from 'rxjs';
 })
 export class ResizedDirective implements OnInit {
     @Input()
-    public osResized: Subject<void>;
+    public osResized: Subject<ElementSize>;
 
     /**
      * Old width, to check, if the width has actually changed.
@@ -54,7 +58,10 @@ export class ResizedDirective implements OnInit {
         this.oldHeight = newHeight;
 
         if (this.osResized) {
-            this.osResized.next();
+            this.osResized.next({
+                width: newWidth,
+                height: newHeight
+            });
         }
     }
 }

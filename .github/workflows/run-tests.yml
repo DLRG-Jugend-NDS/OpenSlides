@@ -40,7 +40,7 @@ jobs:
         run: mypy openslides/ tests/
 
       - name: test using pytest
-        run: pytest --cov --cov-fail-under=75
+        run: pytest --cov --cov-fail-under=73
 
   install-client-dependencies:
     runs-on: ubuntu-latest
@@ -59,7 +59,7 @@ jobs:
             node_modules-
       - uses: actions/setup-node@v2-beta
         with:
-          node-version: "12"
+          node-version: "14"
 
       - name: install client dependencies
         if: steps.node-module-cache.outputs.cache-hit != 'true'

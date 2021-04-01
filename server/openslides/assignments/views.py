@@ -15,7 +15,6 @@ from openslides.utils.rest_api import (
 )
 from openslides.utils.utils import is_int
 
-from .access_permissions import AssignmentAccessPermissions
 from .models import (
     Assignment,
     AssignmentOption,
@@ -31,24 +30,15 @@ from .models import (
 class AssignmentViewSet(ModelViewSet):
     """
     API endpoint for assignments.
-
-    There are the following views: metadata, list, retrieve, create,
-    partial_update, update, destroy, candidature_self, candidature_other and create_poll.
     """
 
-    access_permissions = AssignmentAccessPermissions()
     queryset = Assignment.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action == "metadata":
-            # Everybody is allowed to see the metadata.
-            result = True
-        elif self.action in (
+        if self.action in (
             "create",
             "partial_update",
             "update",
@@ -377,7 +367,7 @@ class AssignmentPollViewSet(BasePollViewSet):
                 - ids should be integers of valid option ids for this poll
                 - amounts must be 0 or 1, if poll.allow_multiple_votes_per_candidate is False
                 - if an option is not given, 0 is assumed
-                - The sum of all amounts must be grater than 0 and <= poll.votes_amount
+                - The sum of all amounts must be >= poll.min_votes_amount and <= poll.max_votes_amount
 
             YN/YNA:
                 {<option_id>: 'Y' | 'N' [|'A']}
@@ -471,11 +461,18 @@ class AssignmentPollViewSet(BasePollViewSet):
                             )
                         amount_sum += amount
 
-                    if amount_sum > poll.votes_amount:
+                    if amount_sum > poll.max_votes_amount:
                         raise ValidationError(
                             {
                                 "detail": "You can give a maximum of {0} votes",
-                                "args": [poll.votes_amount],
+                                "args": [poll.max_votes_amount],
+                            }
+                        )
+                    if amount_sum < poll.min_votes_amount:
+                        raise ValidationError(
+                            {
+                                "detail": "You must give a minimum of {0} votes",
+                                "args": [poll.min_votes_amount],
                             }
                         )
                 # return, if there is a global vote, because we dont have to check option presence
@@ -525,6 +522,7 @@ class AssignmentPollViewSet(BasePollViewSet):
         """
         options = poll.get_options()
         if isinstance(data, dict):
+            user_token = AssignmentVote.objects.generate_user_token()
             for option_id, amount in data.items():
                 # Add user to the option's voted array
                 option = options.get(pk=option_id)
@@ -543,8 +541,9 @@ class AssignmentPollViewSet(BasePollViewSet):
                     delegated_user=request_user,
                     weight=weight,
                     value=value,
+                    user_token=user_token,
                 )
-                inform_changed_data(vote, no_delete_on_restriction=True)
+                inform_changed_data(vote)
         else:  # global_no or global_abstain
             option = options[0]
             weight = vote_weight if config["users_activate_vote_weight"] else Decimal(1)
@@ -555,7 +554,7 @@ class AssignmentPollViewSet(BasePollViewSet):
                 weight=weight,
                 value=data,
             )
-            inform_changed_data(vote, no_delete_on_restriction=True)
+            inform_changed_data(vote)
             inform_changed_data(option)
             inform_changed_data(poll)
 
@@ -569,6 +568,7 @@ class AssignmentPollViewSet(BasePollViewSet):
         request_user is the user who gives the vote, may be a delegate
         """
         options = poll.get_options()
+        user_token = AssignmentVote.objects.generate_user_token()
         weight = vote_weight if config["users_activate_vote_weight"] else Decimal(1)
         for option_id, result in data.items():
             option = options.get(pk=option_id)
@@ -578,9 +578,10 @@ class AssignmentPollViewSet(BasePollViewSet):
                 delegated_user=request_user,
                 value=result,
                 weight=weight,
+                user_token=user_token,
             )
-            inform_changed_data(vote, no_delete_on_restriction=True)
-            inform_changed_data(option, no_delete_on_restriction=True)
+            inform_changed_data(vote)
+            inform_changed_data(option)
 
     def add_user_to_voted_array(self, user, poll):
         VotedModel = AssignmentPoll.voted.through

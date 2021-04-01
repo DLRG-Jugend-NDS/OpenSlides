@@ -1,0 +1,25 @@
+<div class="message-box" [ngClass]="{ 'incomming-message': !isOwnMessage, 'outgoind-message': isOwnMessage }">
+    <div class="author" *ngIf="!isOwnMessage">
+        {{ author }}
+    </div>
+    <div
+        class="chat-text"
+        [ngClass]="{
+            disabled: !canDelete,
+            'background-primary': !isOwnMessage,
+            'background-primary-darkest': isOwnMessage
+        }"
+        [matMenuTriggerFor]="singleChatMenu"
+    >
+        {{ text }}
+        <div class="timestamp">{{ date | localizedDate }}</div>
+    </div>
+</div>
+
+<mat-menu #singleChatMenu="matMenu">
+    <!-- Delete this message -->
+    <button mat-menu-item (click)="onDeleteMessage()" *ngIf="canDelete">
+        <mat-icon color="warn">delete</mat-icon>
+        <span>{{ 'Delete' | translate }}</span>
+    </button>
+</mat-menu>

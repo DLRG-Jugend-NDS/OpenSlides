@@ -6,6 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
+from django.db.models import F
 from django.utils import timezone
 
 from openslides.core.config import config
@@ -20,8 +21,6 @@ from openslides.utils.models import (
 )
 from openslides.utils.postgres import restart_id_sequence
 from openslides.utils.utils import to_roman
-
-from .access_permissions import ItemAccessPermissions, ListOfSpeakersAccessPermissions
 
 
 class ItemManager(BaseManager):
@@ -203,7 +202,6 @@ class Item(RESTModelMixin, models.Model):
     An Agenda Item
     """
 
-    access_permissions = ItemAccessPermissions()
     objects = ItemManager()
     can_see_permission = "agenda.can_see"
 
@@ -361,7 +359,6 @@ class ListOfSpeakersManager(BaseManager):
 
 class ListOfSpeakers(RESTModelMixin, models.Model):
 
-    access_permissions = ListOfSpeakersAccessPermissions()
     objects = ListOfSpeakersManager()
     can_see_permission = "agenda.can_see_list_of_speakers"
 
@@ -446,20 +443,7 @@ class SpeakerManager(models.Manager):
         if config["agenda_present_speakers_only"] and not user.is_present:
             raise OpenSlidesError("Only present users can be on the lists of speakers.")
 
-        if point_of_order:
-            weight = (
-                self.filter(list_of_speakers=list_of_speakers).aggregate(
-                    models.Min("weight")
-                )["weight__min"]
-                or 0
-            ) - 1
-        else:
-            weight = (
-                self.filter(list_of_speakers=list_of_speakers).aggregate(
-                    models.Max("weight")
-                )["weight__max"]
-                or 0
-            ) + 1
+        weight = self._get_new_speaker_weight(list_of_speakers, point_of_order)
 
         speaker = self.model(
             list_of_speakers=list_of_speakers,
@@ -470,9 +454,50 @@ class SpeakerManager(models.Manager):
         speaker.save(
             force_insert=True,
             skip_autoupdate=skip_autoupdate,
-            no_delete_on_restriction=True,
         )
         return speaker
+
+    def _get_new_speaker_weight(self, list_of_speakers, point_of_order):
+        """
+        Calculates the weight of a newly to create speaker
+
+        - if there are no speakers, it will be 1
+        - non-poo speakers get max_weight + 1
+        - poo speakers:
+          * if the first waiting speaker is no poo speaker, insert it before it (min_weight-1)
+          * else: insert it before the first non-poo speaker. All other speakers must get a weight+1 update
+
+        Note that this method has side-effects: It might change the weight of other speakers to make
+        space for the new point of order speaker.
+        """
+        queryset = self.filter(list_of_speakers=list_of_speakers, begin_time=None)
+
+        # get non-poo speakers out of the way
+        if not point_of_order:
+            return (queryset.aggregate(models.Max("weight"))["weight__max"] or 0) + 1
+
+        # get the first waiting speaker
+        first_speaker = queryset.order_by("weight").first()
+
+        if first_speaker is None:
+            return 1  # no speakers yet
+        if not first_speaker.point_of_order:
+            return first_speaker.weight - 1
+
+        # get the first non-poo speaker
+        first_non_poo_speaker = (
+            queryset.filter(point_of_order=False).order_by("weight").first()
+        )
+
+        if first_non_poo_speaker is None:
+            # max weight + 1, the speaker is last since there are no non-poo speakers
+            return (queryset.aggregate(models.Max("weight"))["weight__max"] or 0) + 1
+
+        weight = first_non_poo_speaker.weight
+        # add +1 to all speakers with weight >= first_non_poo_speaker.weight
+        queryset.filter(weight__gte=weight).update(weight=F("weight") + 1)
+
+        return weight
 
 
 class Speaker(RESTModelMixin, models.Model):

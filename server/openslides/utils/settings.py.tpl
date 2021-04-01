@@ -7,29 +7,18 @@ https://github.com/OpenSlides/OpenSlides/blob/master/SETTINGS.rst
 
 import os
 from openslides.global_settings import *
-%(import_function)s
-
-# The directory for user specific data files
-
-OPENSLIDES_USER_DATA_DIR = %(openslides_user_data_dir)s
 
 
 # OpenSlides plugins
-
 # Add plugins to this list (see example entry in comment).
 
 INSTALLED_PLUGINS += (
 #    'plugin_module_name',
 )
-
 INSTALLED_APPS += INSTALLED_PLUGINS
 
 
-# Important settings for production use
-# https://docs.djangoproject.com/en/1.10/howto/deployment/checklist/
-
 # SECURITY WARNING: Keep the secret key used in production secret!
-
 SECRET_KEY = %(secret_key)r
 
 # Use 'DEBUG = True' to get more details for server errors.
@@ -60,7 +49,7 @@ DEFAULT_FROM_EMAIL = 'noreply@example.com'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600
 
 # Database
-# https://docs.djangoproject.com/en/1.10/ref/settings/#databases
+# https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
 # Change this setting to use e. g. PostgreSQL or MySQL.
 
@@ -83,45 +72,9 @@ DATABASES = {
 }
 
 
-# Set use_redis to True to activate redis as cache-, asgi- and session backend.
-use_redis = False
+# Collection Cache
+REDIS_ADDRESS = "redis://redis:6379/0"
 
-if use_redis:
-    # Django Channels
-
-    # https://channels.readthedocs.io/en/latest/topics/channel_layers.html#configuration
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [("localhost", 6379)],
-                "capacity": 100000,
-            },
-        },
-    }
-    # Collection Cache
-
-    # Can be:
-    # a Redis URI — "redis://host:6379/0?encoding=utf-8";
-    # a (host, port) tuple — ('localhost', 6379);
-    # or a unix domain socket path string — "/path/to/redis.sock".
-    REDIS_ADDRESS = "redis://127.0.0.1"
-    # REDIS_READ_ONLY_ADDRESS
-    AMOUNT_REPLICAS = 1
-
-    # Session backend
-
-    # Redis configuration for django-redis-sessions.
-    # https://github.com/martinrusev/django-redis-sessions
-
-    SESSION_ENGINE = 'redis_sessions.session'
-    SESSION_REDIS = {
-        'host': '127.0.0.1',
-        'port': 6379,
-        'db': 0,
-        'prefix': 'session',
-        'socket_timeout': 2
-    }
 
 # SAML integration
 # Please read https://github.com/OpenSlides/OpenSlides/blob/master/openslides/saml/README.md
@@ -135,6 +88,8 @@ if ENABLE_SAML:
 # Controls if electronic voting (means non-analog polls) are enabled.
 ENABLE_ELECTRONIC_VOTING = False
 
+# Controls if chat should be enabled
+ENABLE_CHAT = False
 
 # Jitsi integration
 # JITSI_DOMAIN = None
@@ -143,33 +98,17 @@ ENABLE_ELECTRONIC_VOTING = False
 
 
 # Internationalization
-# https://docs.djangoproject.com/en/1.10/topics/i18n/
-
+# https://docs.djangoproject.com/en/2.2/topics/i18n/
 TIME_ZONE = 'Europe/Berlin'
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/1.10/howto/static-files/
-
-STATICFILES_DIRS = [os.path.join(OPENSLIDES_USER_DATA_DIR, 'static')] + STATICFILES_DIRS
-
-STATIC_ROOT = os.path.join(OPENSLIDES_USER_DATA_DIR, 'collected-static')
-
-
-# Files
-# https://docs.djangoproject.com/en/1.10/topics/files/
-
-MEDIA_ROOT = os.path.join(OPENSLIDES_USER_DATA_DIR, 'media', '')
-
-
 # Password validation
-# https://docs.djangoproject.com/en/1.10/topics/auth/passwords/#module-django.contrib.auth.password_validation
+# https://docs.djangoproject.com/en/2.2/topics/auth/passwords/#module-django.contrib.auth.password_validation
 # AUTH_PASSWORD_VALIDATORS = []
 
 
 # Logging
 # see https://docs.djangoproject.com/en/2.2/topics/logging/
-
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,

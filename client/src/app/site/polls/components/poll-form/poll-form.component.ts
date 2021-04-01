@@ -1,5 +1,5 @@
 import { Component, Input, OnInit, ViewEncapsulation } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
@@ -13,7 +13,9 @@ import { VotingPrivacyWarningComponent } from 'app/shared/components/voting-priv
 import { AssignmentPollMethod, AssignmentPollPercentBase } from 'app/shared/models/assignments/assignment-poll';
 import { PercentBase } from 'app/shared/models/poll/base-poll';
 import { PollType } from 'app/shared/models/poll/base-poll';
+import { ParentErrorStateMatcher } from 'app/shared/parent-error-state-matcher';
 import { infoDialogSettings } from 'app/shared/utils/dialog-settings';
+import { isNumberRange } from 'app/shared/validators/custom-validators';
 import { ViewAssignmentPoll } from 'app/site/assignments/models/view-assignment-poll';
 import { BaseViewComponentDirective } from 'app/site/base/base-view';
 import {
@@ -39,6 +41,7 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
      * The form-group for the meta-info.
      */
     public contentForm: FormGroup;
+    public parentErrorStateMatcher = new ParentErrorStateMatcher();
 
     public PollType = PollType;
     public PollPropertyVerbose = PollPropertyVerbose;
@@ -102,6 +105,26 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
         }
     }
 
+    public get isEVotingSelected(): boolean {
+        return this.pollTypeControl?.value !== PollType.Analog || false;
+    }
+
+    private get pollTypeControl(): AbstractControl {
+        return this.contentForm.get('type');
+    }
+
+    private get pollMethodControl(): AbstractControl {
+        return this.contentForm.get('pollmethod');
+    }
+
+    private get globalYesControl(): AbstractControl {
+        return this.contentForm.get('global_yes');
+    }
+
+    private get globalNoControl(): AbstractControl {
+        return this.contentForm.get('global_no');
+    }
+
     /**
      * Constructor. Retrieves necessary metadata from the pollService,
      * injects the poll itself
@@ -133,22 +156,18 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
             }
 
             if (this.data instanceof ViewAssignmentPoll) {
-                if (this.data.assignment && !this.data.votes_amount) {
-                    this.data.votes_amount = this.data.assignment.open_posts;
+                if (this.data.assignment && !this.data.max_votes_amount) {
+                    this.data.max_votes_amount = this.data.assignment.open_posts;
                 }
                 if (!this.data.pollmethod) {
                     this.data.pollmethod = this.configService.instant('assignment_poll_method');
                 }
             }
 
-            Object.keys(this.contentForm.controls).forEach(key => {
-                if (this.data[key]) {
-                    this.contentForm.get(key).patchValue(this.data[key]);
-                }
-            });
+            this.patchForm(this.contentForm);
         }
         this.updatePollValues(this.contentForm.value);
-        this.updatePercentBases(this.contentForm.get('pollmethod').value);
+        this.updatePercentBases(this.pollMethodControl.value);
 
         this.subscriptions.push(
             // changes to whole form
@@ -158,14 +177,14 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
                 }
             }),
             // poll method changes
-            this.contentForm.get('pollmethod').valueChanges.subscribe(method => {
+            this.pollMethodControl.valueChanges.subscribe((method: AssignmentPollMethod) => {
                 if (method) {
                     this.updatePercentBases(method);
                     this.setWarning();
                 }
             }),
             // poll type changes
-            this.contentForm.get('type').valueChanges.subscribe(() => {
+            this.pollTypeControl.valueChanges.subscribe(() => {
                 this.setWarning();
             })
         );
@@ -173,12 +192,31 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
         this.setWarning();
     }
 
+    /**
+     * Generic recursive helper function to patch the form
+     * will transitive move poll.min_votes_amount and poll.max_votes_amount into
+     * form.votes_amount.min_votes_amount/max_votes_amount
+     * @param formGroup
+     */
+    private patchForm(formGroup: FormGroup): void {
+        for (const key of Object.keys(formGroup.controls)) {
+            const currentControl = formGroup.controls[key];
+            if (currentControl instanceof FormControl) {
+                if (this.data[key]) {
+                    currentControl.patchValue(this.data[key]);
+                }
+            } else if (currentControl instanceof FormGroup) {
+                this.patchForm(currentControl);
+            }
+        }
+    }
+
     private disablePollType(): void {
-        this.contentForm.get('type').disable();
+        this.pollTypeControl.disable();
     }
 
     public showAmountAndGlobal(data: any): boolean {
-        const selectedPollMethod = this.contentForm.get('pollmethod').value;
+        const selectedPollMethod: AssignmentPollMethod = this.pollMethodControl.value;
         return (selectedPollMethod === 'Y' || selectedPollMethod === 'N') && (!data || !data.state || data.isCreated);
     }
 
@@ -236,15 +274,25 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
      * and the poll method is votes.
      */
     private setWarning(): void {
-        if (this.contentForm.get('type').value === PollType.Pseudoanonymous) {
+        if (this.pollTypeControl.value === PollType.Pseudoanonymous) {
             this.showNonNominalWarning = true;
         } else {
             this.showNonNominalWarning = false;
         }
     }
 
-    public getValues<V extends ViewBasePoll>(): Partial<V> {
-        return { ...this.data, ...this.contentForm.value };
+    public getValues(): Partial<T> {
+        return { ...this.data, ...this.serializeForm(this.contentForm) };
+    }
+
+    private serializeForm(formGroup: FormGroup): Partial<T> {
+        /**
+         * getRawValue() includes disabled controls.
+         * Required since the server assumes missing fields would imply "true"
+         */
+        const formData = { ...formGroup.getRawValue(), ...formGroup.value.votes_amount };
+        delete formData.votes_amount;
+        return formData;
     }
 
     /**
@@ -254,6 +302,9 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
      */
     private updatePollValues(data: { [key: string]: any }): void {
         if (this.data) {
+            const pollMethod: AssignmentPollMethod = data.pollmethod;
+            const pollType: PollType = data.type;
+
             this.pollValues = [
                 [
                     this.pollService.getVerboseNameForKey('type'),
@@ -267,7 +318,7 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
                     this.pollService.getVerboseNameForValue('pollmethod', data.pollmethod)
                 ]);
             }
-            if (data.type !== 'analog') {
+            if (pollType !== PollType.Analog) {
                 this.pollValues.push([
                     this.pollService.getVerboseNameForKey('groups'),
                     data && data.groups_id && data.groups_id.length
@@ -276,11 +327,32 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
                 ]);
             }
 
-            if (data.pollmethod === 'Y' || data.pollmethod === 'N') {
-                this.pollValues.push([this.pollService.getVerboseNameForKey('votes_amount'), data.votes_amount]);
+            if (pollMethod === AssignmentPollMethod.Y || pollMethod === AssignmentPollMethod.N) {
                 this.pollValues.push([this.pollService.getVerboseNameForKey('global_yes'), data.global_yes]);
                 this.pollValues.push([this.pollService.getVerboseNameForKey('global_no'), data.global_no]);
                 this.pollValues.push([this.pollService.getVerboseNameForKey('global_abstain'), data.global_abstain]);
+                this.pollValues.push([this.pollService.getVerboseNameForKey('votes_amount'), data.votes_amount]);
+                this.pollValues.push([
+                    this.pollService.getVerboseNameForKey('max_votes_amount'),
+                    data.max_votes_amount
+                ]);
+                this.pollValues.push([
+                    this.pollService.getVerboseNameForKey('min_votes_amount'),
+                    data.min_votes_amount
+                ]);
+
+                const suppressEvent = {
+                    emitEvent: false
+                };
+                if (pollMethod === AssignmentPollMethod.Y) {
+                    this.globalYesControl.disable(suppressEvent);
+                    this.globalYesControl.setValue(false, suppressEvent);
+                    this.globalNoControl.enable(suppressEvent);
+                } else if (pollMethod === AssignmentPollMethod.N) {
+                    this.globalNoControl.disable(suppressEvent);
+                    this.globalNoControl.setValue(false, suppressEvent);
+                    this.globalYesControl.enable(suppressEvent);
+                }
             }
         }
     }
@@ -292,7 +364,13 @@ export class PollFormComponent<T extends ViewBasePoll, S extends PollService>
             pollmethod: ['', Validators.required],
             onehundred_percent_base: ['', Validators.required],
             majority_method: ['', Validators.required],
-            votes_amount: [1, [Validators.required, Validators.min(1)]],
+            votes_amount: this.fb.group(
+                {
+                    max_votes_amount: [1, [Validators.required, Validators.min(1)]],
+                    min_votes_amount: [1, [Validators.required, Validators.min(1)]]
+                },
+                { validator: isNumberRange('min_votes_amount', 'max_votes_amount') }
+            ),
             groups_id: [],
             global_yes: [false],
             global_no: [false],

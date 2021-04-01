@@ -5,11 +5,11 @@ from typing import Iterable, List, Set, Union
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.contrib.auth import (
+    authenticate as auth_authenticate,
     login as auth_login,
     logout as auth_logout,
     update_session_auth_hash,
 )
-from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import Permission
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
@@ -22,6 +22,7 @@ from django.http.request import QueryDict
 from django.utils.encoding import force_bytes, force_text
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
+from openslides.chat.models import ChatGroup
 from openslides.saml import SAML_ENABLED
 from openslides.utils import logging
 
@@ -47,12 +48,8 @@ from ..utils.rest_api import (
 )
 from ..utils.validate import validate_json
 from ..utils.views import APIView
-from .access_permissions import (
-    GroupAccessPermissions,
-    PersonalNoteAccessPermissions,
-    UserAccessPermissions,
-)
 from .models import Group, PersonalNote, User
+from .restrict import restrict_user
 from .serializers import GroupSerializer, PermissionRelatedField
 from .user_backend import user_backend_manager
 
@@ -84,18 +81,13 @@ class UserViewSet(ModelViewSet):
     partial_update, update, destroy and reset_password.
     """
 
-    access_permissions = UserAccessPermissions()
     queryset = User.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action == "metadata":
-            result = has_perm(self.request.user, "users.can_see_name")
-        elif self.action in ("update", "partial_update"):
+        if self.action in ("update", "partial_update"):
             result = self.request.user.is_authenticated
         elif self.action in (
             "create",
@@ -125,6 +117,7 @@ class UserViewSet(ModelViewSet):
         except IntegrityError as e:
             raise ValidationError({"detail": str(e)})
 
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         """
         Customized view endpoint to update an user.
@@ -203,27 +196,32 @@ class UserViewSet(ModelViewSet):
         response = super().update(request, *args, **kwargs)
 
         # after rest of the request succeeded, handle delegation changes
-        if new_delegation_ids:
+        if isinstance(new_delegation_ids, list):
             self.assert_no_self_delegation(user, new_delegation_ids)
             self.assert_vote_not_delegated(user)
 
             for id in new_delegation_ids:
-                delegation_user = User.objects.get(id=id)
+                try:
+                    delegation_user = User.objects.get(id=id)
+                except User.DoesNotExist:
+                    raise ValidationError(
+                        {
+                            "detail": f"The user {id} does not exist and cannot be set as vote delegation"
+                        }
+                    )
                 self.assert_has_no_delegated_votes(delegation_user)
                 delegation_user.vote_delegated_to = user
                 delegation_user.save()
 
-        delegations_to_remove = user.vote_delegated_from_users.exclude(
-            id__in=(new_delegation_ids or [])
-        )
-        for old_delegation_user in delegations_to_remove:
-            old_delegation_user.vote_delegated_to = None
-            old_delegation_user.save()
+            delegations_to_remove = user.vote_delegated_from_users.exclude(
+                id__in=new_delegation_ids
+            )
+            for old_delegation_user in delegations_to_remove:
+                old_delegation_user.vote_delegated_to = None
+                old_delegation_user.save()
 
-        # if only delegated_from was changed, we need an autoupdate for the operator
-        if new_delegation_ids or delegations_to_remove:
-            inform_changed_data(user)
-
+        inform_changed_data(user)
+        inform_changed_data(ChatGroup.objects.all())
         return response
 
     def assert_vote_not_delegated(self, user):
@@ -590,19 +588,12 @@ class GroupViewSet(ModelViewSet):
     metadata_class = GroupViewSetMetadata
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
-    access_permissions = GroupAccessPermissions()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action == "metadata":
-            # Every authenticated user can see the metadata.
-            # Anonymous users can do so if they are enabled.
-            result = self.request.user.is_authenticated or anonymous_is_enabled()
-        elif self.action in (
+        if self.action in (
             "create",
             "partial_update",
             "update",
@@ -755,16 +746,13 @@ class PersonalNoteViewSet(ModelViewSet):
     partial_update, update, and destroy.
     """
 
-    access_permissions = PersonalNoteAccessPermissions()
     queryset = PersonalNote.objects.all()
 
     def check_view_permissions(self):
         """
         Returns True if the user has required permissions.
         """
-        if self.action in ("list", "retrieve"):
-            result = self.get_access_permissions().check_permissions(self.request.user)
-        elif self.action in ("create_or_update", "destroy"):
+        if self.action in ("create_or_update", "destroy"):
             # Every authenticated user can see metadata and create personal
             # notes for himself and can manipulate only his own personal notes.
             # See self.perform_create(), self.update() and self.destroy().
@@ -862,9 +850,7 @@ class WhoAmIDataView(APIView):
                 raise APIException(f"Could not find user {user_id}", 500)
 
             auth_type = user_full_data["auth_type"]
-            user_data = async_to_sync(element_cache.restrict_element_data)(
-                user_full_data, self.request.user.get_collection_string(), user_id
-            )
+            user_data = async_to_sync(restrict_user)(user_full_data)
             group_ids = user_data["groups_id"] or [GROUP_DEFAULT_PK]
         else:
             user_data = None
@@ -902,13 +888,19 @@ class UserLoginView(WhoAmIDataView):
             raise ValidationError(
                 {"detail": "Cookies have to be enabled to use OpenSlides."}
             )
-        form = AuthenticationForm(self.request, data=self.request.data)
-        if not form.is_valid():
+
+        username = self.request.data.get("username")
+        password = self.request.data.get("password")
+        user = auth_authenticate(self.request, username=username, password=password)
+        if user is None:
             raise ValidationError({"detail": "Username or password is not correct."})
-        self.user = form.get_user()
-        if self.user.auth_type != "default":
-            raise ValidationError({"detail": "Please login via your identity provider"})
-        auth_login(self.request, self.user)
+        elif not user.is_active:
+            raise ValidationError({"detail": "Your account is not active."})
+        elif user.auth_type != "default":
+            raise ValidationError(
+                {"detail": "Please login via your identity provider."}
+            )
+        auth_login(self.request, user)
         return super().post(*args, **kwargs)
 
     def get_context_data(self, **context):

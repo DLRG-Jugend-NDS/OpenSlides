@@ -182,8 +182,20 @@ export class UserRepositoryService extends BaseRepository<ViewUser, User, UserTi
     public getRandomPassword(length: number = 10): string {
         let pw = '';
         const characters = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        for (let i = 0; i < length; i++) {
-            pw += characters.charAt(Math.floor(Math.random() * characters.length));
+        // set charactersLengthPower2 to characters.length rounded up to the next power of two
+        let charactersLengthPower2 = 1;
+        while (characters.length > charactersLengthPower2) {
+            charactersLengthPower2 *= 2;
+        }
+        while (pw.length < length) {
+            const random = new Uint8Array(length - pw.length);
+            window.crypto.getRandomValues(random);
+            for (let i = 0; i < random.length; i++) {
+                const r = random[i] % charactersLengthPower2;
+                if (r < characters.length) {
+                    pw += characters.charAt(r);
+                }
+            }
         }
         return pw;
     }
@@ -267,8 +279,6 @@ export class UserRepositoryService extends BaseRepository<ViewUser, User, UserTi
 
     public async update(update: Partial<User>, viewModel: ViewUser): Promise<void> {
         this.preventAlterationOnDemoUsers(viewModel);
-        console.log('update: ', update);
-
         return super.update(update, viewModel);
     }
 

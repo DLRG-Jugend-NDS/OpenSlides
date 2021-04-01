@@ -15,6 +15,7 @@ export enum AssignmentPollPercentBase {
     YNA = 'YNA',
     Valid = 'valid',
     Cast = 'cast',
+    Entitled = 'entitled',
     Disabled = 'disabled'
 }
 
@@ -41,7 +42,8 @@ export class AssignmentPoll extends BasePoll<
 
     public id: number;
     public assignment_id: number;
-    public votes_amount: number;
+    public min_votes_amount: number;
+    public max_votes_amount: number;
     public allow_multiple_votes_per_candidate: boolean;
     public global_yes: boolean;
     public global_no: boolean;

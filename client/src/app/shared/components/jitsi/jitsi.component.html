@@ -61,9 +61,7 @@
                     matTooltip="{{ 'Exit live conference and continue livestream' | translate }}"
                     *ngIf="videoStreamUrl && canSeeLiveStream && !isJitsiDialogOpen"
                 >
-                    <mat-icon color="warn">
-                        meeting_room
-                    </mat-icon>
+                    <mat-icon color="warn">meeting_room</mat-icon>
                 </button>
 
                 <!-- mute/unmute button -->
@@ -87,10 +85,14 @@
                     *ngIf="enableJitsi && isAccessPermitted"
                     class="quick-icon indicator"
                     mat-mini-fab
-                    (click)="enterConversation()"
+                    (click)="enterConferenceRoom()"
                     matTooltip="{{ 'Enter live conference' | translate }}"
                 >
-                    <mat-icon color="primary" [@fadeInOut]="isEnterMeetingRoomVisible" (@fadeInOut.done)="triggerMeetingRoomButtonAnimation()">
+                    <mat-icon
+                        color="primary"
+                        [@fadeInOut]="isEnterMeetingRoomVisible"
+                        (@fadeInOut.done)="triggerMeetingRoomButtonAnimation()"
+                    >
                         meeting_room
                     </mat-icon>
                 </button>
@@ -103,11 +105,35 @@
                     *ngIf="enableJitsi && !isAccessPermitted"
                     [routerLink]="['/agenda/speakers']"
                 >
-                    <mat-icon>
-                        no_meeting_room
-                    </mat-icon>
+                    <mat-icon> no_meeting_room </mat-icon>
                 </a>
             </ng-container>
+
+            <!-- Call support button -->
+            <button
+                class="indicator quick-icon"
+                mat-mini-fab
+                (click)="enterSupportRoom()"
+                [disabled]="isJitsiActive"
+                matTooltip="{{ 'Help desk' | translate }}"
+                *ngIf="canAccessSupport"
+            >
+                <mat-icon color="primary">live_help</mat-icon>
+            </button>
+
+            <!-- applause button -->
+            <button
+                class="quick-icon indicator"
+                [disabled]="applauseDisabled"
+                mat-mini-fab
+                (click)="sendApplause()"
+                matTooltip="{{ 'Give applause' | translate }}"
+                *ngIf="showApplause"
+                [matBadge]="showApplauseBadge ? applauseLevel : null"
+                matBadgeColor="accent"
+            >
+                <mat-icon svgIcon="clapping_hands"></mat-icon>
+            </button>
         </span>
 
         <span
@@ -118,10 +144,13 @@
                 'cast-shadow': showJitsiWindow
             }"
         >
+            <os-applause-bar-display *ngIf="showApplause && isApplauseTypeBar" class="applause"></os-applause-bar-display>
+
             <!-- open-window button -->
             <button class="toggle-list-button" mat-button (click)="toggleShowJitsi()">
                 <ng-container *ngIf="currentState == state.jitsi">
-                    <div class="ellipsis-overflow">{{ 'Live conference' | translate }}</div>
+                    <div *ngIf="!connectToHelpDesk" class="ellipsis-overflow">{{ 'Live conference' | translate }}</div>
+                    <div *ngIf="connectToHelpDesk" class="ellipsis-overflow">{{ 'Help desk' | translate }}</div>
                     <div class="one-line">
                         &nbsp;
                         <span *ngIf="currentDominantSpeaker">
@@ -149,7 +178,7 @@
             <div
                 class="jitsi-list"
                 [ngClass]="{
-                    'cdk-visually-hidden': !showJitsiWindow
+                    'hide-height': !showJitsiWindow
                 }"
             >
                 <ng-container *ngIf="currentState == state.jitsi">
@@ -175,6 +204,10 @@
 
                         <!-- user list -->
                         <div class="room-members" *ngIf="isJitsiActive && isJoined">
+                            <os-applause-particle-display
+                                *ngIf="isApplauseTypeParticles"
+                                class="room-list-applause-particles"
+                            ></os-applause-particle-display>
                             <div class="member-list">
                                 <ol>
                                     <li
@@ -194,12 +227,14 @@
                 </ng-container>
 
                 <ng-container *ngIf="currentState == state.stream">
-                    <os-vjs-player
-                        [videoUrl]="videoStreamUrl"
-                        (started)="onSteamStarted()"
-                        *ngIf="(canSeeLiveStream && !streamActiveInAnotherTab) || streamRunning"
-                    ></os-vjs-player>
-                    <div class="disconnected" *ngIf="streamActiveInAnotherTab && !streamRunning">
+                    <ng-container *ngIf="showVideoPlayer()">
+                        <os-video-player
+                            [videoUrl]="videoStreamUrl"
+                            [showParticles]="isApplauseTypeParticles"
+                            (started)="onSteamLoaded()"
+                        ></os-video-player>
+                    </ng-container>
+                    <div class="disconnected" *ngIf="isStreamInOtherTab()">
                         <button class="restart-stream-button" mat-button color="warn" (click)="deleteStreamingLock()">
                             <span>{{ 'Restart livestream' | translate }}</span>
                         </button>
@@ -227,7 +262,7 @@
                                 <button
                                     mat-mini-fab
                                     color="accent"
-                                    (click)="enterConversation()"
+                                    (click)="enterConferenceRoom()"
                                     [disabled]="
                                         !enableJitsi || isJitsiActive || isJitsiActiveInAnotherTab || !isAccessPermitted
                                     "

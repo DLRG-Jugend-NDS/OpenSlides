@@ -1,19 +1,23 @@
 import { ApplicationRef, Component } from '@angular/core';
+import { MatIconRegistry } from '@angular/material/icon';
+import { DomSanitizer } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 
 import { TranslateService } from '@ngx-translate/core';
-import { filter, take } from 'rxjs/operators';
+import { first, tap } from 'rxjs/operators';
 
+import { ChatNotificationService } from './site/chat/services/chat-notification.service';
 import { ConfigService } from './core/ui-services/config.service';
 import { ConstantsService } from './core/core-services/constants.service';
 import { CountUsersService } from './core/ui-services/count-users.service';
 import { DataStoreUpgradeService } from './core/core-services/data-store-upgrade.service';
 import { LoadFontService } from './core/ui-services/load-font.service';
 import { LoginDataService } from './core/ui-services/login-data.service';
+import { OfflineService } from './core/core-services/offline.service';
+import { OpenSlidesStatusService } from './core/core-services/openslides-status.service';
+import { OpenSlidesService } from './core/core-services/openslides.service';
 import { OperatorService } from './core/core-services/operator.service';
 import { OverlayService } from './core/ui-services/overlay.service';
-import { PingService } from './core/core-services/ping.service';
-import { PrioritizeService } from './core/core-services/prioritize.service';
 import { RoutingStateService } from './core/ui-services/routing-state.service';
 import { ServertimeService } from './core/core-services/servertime.service';
 import { ThemeService } from './core/ui-services/theme.service';
@@ -59,35 +63,31 @@ export class AppComponent {
      *
      * Handles the altering of Array.toString()
      *
-     * @param translate To set the default language
-     * @param operator To call the constructor of the OperatorService
-     * @param loginDataService to call the constructor of the LoginDataService
-     * @param constantService to call the constructor of the ConstantService
-     * @param servertimeService executes the scheduler early on
-     * @param themeService used to listen to theme-changes
-     * @param countUsersService to call the constructor of the CountUserService
-     * @param configService to call the constructor of the ConfigService
-     * @param loadFontService to call the constructor of the LoadFontService
-     * @param dataStoreUpgradeService
+     * Most of the injected service are not used - this is ok. It is needed to definitly
+     * run their constructors at app loading time
      */
     public constructor(
+        private matIconRegistry: MatIconRegistry,
+        private domSanitizer: DomSanitizer,
         translate: TranslateService,
         appRef: ApplicationRef,
         servertimeService: ServertimeService,
+        openslidesService: OpenSlidesService,
+        openslidesStatus: OpenSlidesStatusService,
         router: Router,
+        offlineService: OfflineService,
         operator: OperatorService,
         loginDataService: LoginDataService,
-        constantsService: ConstantsService, // Needs to be started, so it can register itself to the WebsocketService
+        constantsService: ConstantsService,
         themeService: ThemeService,
         overlayService: OverlayService,
         countUsersService: CountUsersService, // Needed to register itself.
         configService: ConfigService,
         loadFontService: LoadFontService,
         dataStoreUpgradeService: DataStoreUpgradeService, // to start it.
-        prioritizeService: PrioritizeService,
-        pingService: PingService,
         routingState: RoutingStateService,
-        votingBannerService: VotingBannerService // needed for initialisation
+        votingBannerService: VotingBannerService, // needed for initialisation,
+        chatNotificationService: ChatNotificationService
     ) {
         // manually add the supported languages
         translate.addLangs(['en', 'de', 'cs', 'ru']);
@@ -102,16 +102,20 @@ export class AppComponent {
         this.overloadArrayFunctions();
         this.overloadSetFunctions();
         this.overloadModulo();
+        this.loadCustomIcons();
 
         // Wait until the App reaches a stable state.
         // Required for the Service Worker.
         appRef.isStable
             .pipe(
                 // take only the stable state
-                filter(s => s),
-                take(1)
+                first(stable => stable),
+                tap(() => console.debug('App is now stable!'))
             )
-            .subscribe(() => servertimeService.startScheduler());
+            .subscribe(() => {
+                openslidesStatus.setStable();
+                servertimeService.startScheduler();
+            });
     }
 
     private overloadArrayFunctions(): void {
@@ -205,5 +209,12 @@ export class AppComponent {
             },
             enumerable: false
         });
+    }
+
+    private loadCustomIcons(): void {
+        this.matIconRegistry.addSvgIcon(
+            `clapping_hands`,
+            this.domSanitizer.bypassSecurityTrustResourceUrl('../assets/svg/clapping_hands.svg')
+        );
     }
 }

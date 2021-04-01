@@ -8,6 +8,7 @@ import { ActivatedRoute } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
 import { timer } from 'rxjs';
 
+import { OpenSlidesStatusService } from 'app/core/core-services/openslides-status.service';
 import { OperatorService, Permission } from 'app/core/core-services/operator.service';
 import { ProjectorService } from 'app/core/core-services/projector.service';
 import { CountdownRepositoryService } from 'app/core/repositories/projector/countdown-repository.service';
@@ -96,13 +97,10 @@ export class ProjectorDetailComponent extends BaseViewComponentDirective impleme
         private durationService: DurationService,
         private cd: ChangeDetectorRef,
         private promptService: PromptService,
-        private opertator: OperatorService
+        private opertator: OperatorService,
+        private openslidesStatus: OpenSlidesStatusService
     ) {
         super(titleService, translate, matSnackBar);
-
-        this.countdownRepo.getViewModelListObservable().subscribe(countdowns => (this.countdowns = countdowns));
-        this.messageRepo.getViewModelListObservable().subscribe(messages => (this.messages = messages));
-        this.repo.getViewModelListObservable().subscribe(projectors => (this.projectorCount = projectors.length));
     }
 
     /**
@@ -111,7 +109,6 @@ export class ProjectorDetailComponent extends BaseViewComponentDirective impleme
     public ngOnInit(): void {
         this.route.params.subscribe(params => {
             const projectorId = parseInt(params.id, 10) || 1;
-
             this.subscriptions.push(
                 this.repo.getViewModelObservable(projectorId).subscribe(projector => {
                     if (projector) {
@@ -122,8 +119,10 @@ export class ProjectorDetailComponent extends BaseViewComponentDirective impleme
                 })
             );
         });
-
-        this.subscriptions.push(timer(0, 500).subscribe(() => this.cd.detectChanges()));
+        this.countdownRepo.getViewModelListObservable().subscribe(countdowns => (this.countdowns = countdowns));
+        this.messageRepo.getViewModelListObservable().subscribe(messages => (this.messages = messages));
+        this.repo.getViewModelListObservable().subscribe(projectors => (this.projectorCount = projectors.length));
+        this.installUpdater();
     }
 
     public editProjector(): void {
@@ -352,5 +351,10 @@ export class ProjectorDetailComponent extends BaseViewComponentDirective impleme
         } else {
             this.messageRepo.create(sendData).then(() => {}, this.raiseError);
         }
+    }
+
+    private async installUpdater(): Promise<void> {
+        await this.openslidesStatus.stable;
+        this.subscriptions.push(timer(0, 500).subscribe(() => this.cd.detectChanges()));
     }
 }

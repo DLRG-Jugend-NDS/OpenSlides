@@ -20,15 +20,7 @@ def get_config_variables():
         help_text="Input format: DD.MM.YYYY HH:MM",
         weight=200,
         group="Agenda",
-    )
-
-    yield ConfigVariable(
-        name="agenda_show_subtitle",
-        default_value=False,
-        input_type="boolean",
-        label="Show subtitles in the agenda",
-        weight=201,
-        group="Agenda",
+        hidden=True,
     )
 
     # Numbering
@@ -107,6 +99,16 @@ def get_config_variables():
         input_type="boolean",
         label="Hide internal items when projecting subitems",
         weight=212,
+        group="Agenda",
+        subgroup="Visibility",
+    )
+
+    yield ConfigVariable(
+        name="agenda_show_subtitle",
+        default_value=True,
+        input_type="boolean",
+        label="Show motion submitters in the agenda",
+        weight=213,
         group="Agenda",
         subgroup="Visibility",
     )
@@ -205,6 +207,16 @@ def get_config_variables():
         input_type="boolean",
         label="Show hint »first speech« in the list of speakers management view",
         weight=234,
+        group="Agenda",
+        subgroup="List of speakers",
+    )
+
+    yield ConfigVariable(
+        name="agenda_list_of_speakers_initially_closed",
+        default_value=False,
+        input_type="boolean",
+        label="List of speakers is initially closed",
+        weight=235,
         group="Agenda",
         subgroup="List of speakers",
     )

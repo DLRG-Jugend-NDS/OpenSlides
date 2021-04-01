@@ -1,12 +1,9 @@
 import time
 from typing import Any, Dict, List, Optional
 
-from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 
 from . import logging
-from .access_permissions import BaseAccessPermissions
-from .auth import UserDoesNotExist
 from .autoupdate import AutoupdateElement, inform_changed_data, inform_elements
 from .rest_api import model_serializer_classes
 from .utils import convert_camel_case_to_pseudo_snake_case, get_element_id
@@ -37,17 +34,6 @@ class RESTModelMixin:
     Mixin for Django models which are used in our REST API.
     """
 
-    access_permissions: Optional[BaseAccessPermissions] = None
-
-    personalized_model = False
-    """
-    Flag, if the model is personalized on a per-user basis.
-    Requires the model to have a `user_id` which should be
-    a OneToOne relation to User. The relation must never change,
-    because it won't be deleted from it's former user when the relation
-    changes.
-    """
-
     def get_root_rest_element(self) -> models.Model:
         """
         Returns the root rest instance.
@@ -55,18 +41,6 @@ class RESTModelMixin:
         Uses self as default.
         """
         return self
-
-    @classmethod
-    def get_access_permissions(cls) -> BaseAccessPermissions:
-        """
-        Returns a container to handle access permissions for this model and
-        its corresponding viewset.
-        """
-        if cls.access_permissions is None:
-            raise ImproperlyConfigured(
-                "A RESTModel needs to have an access_permission."
-            )
-        return cls.access_permissions
 
     @classmethod
     def get_collection_string(cls) -> str:
@@ -97,7 +71,7 @@ class RESTModelMixin:
     def save(
         self,
         skip_autoupdate: bool = False,
-        no_delete_on_restriction: bool = False,
+        disable_history: bool = False,
         *args: Any,
         **kwargs: Any,
     ) -> Any:
@@ -116,7 +90,7 @@ class RESTModelMixin:
         if not skip_autoupdate:
             inform_changed_data(
                 self.get_root_rest_element(),
-                no_delete_on_restriction=no_delete_on_restriction,
+                disable_history=disable_history,
             )
         return return_value
 
@@ -167,7 +141,8 @@ class RESTModelMixin:
 
         # For logging the progress
         last_time = time.time()
-        instances_length = len(instances)
+        instances_length = len(instances)  # this evaluates the query
+
         for i, instance in enumerate(instances):
             # Append full data from this instance
             full_data.append(instance.get_full_data())
@@ -177,21 +152,8 @@ class RESTModelMixin:
                 if current_time > last_time + 5:
                     last_time = current_time
                     logger.info(f"    {i+1}/{instances_length}...")
-        return full_data
 
-    @classmethod
-    async def restrict_elements(
-        cls, user_id: int, elements: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """
-        Converts a list of elements from full_data to restricted_data.
-        """
-        try:
-            return await cls.get_access_permissions().get_restricted_data(
-                elements, user_id
-            )
-        except UserDoesNotExist:
-            return []
+        return full_data
 
     def get_full_data(self) -> Dict[str, Any]:
         """

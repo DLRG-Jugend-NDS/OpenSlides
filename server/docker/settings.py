@@ -54,7 +54,7 @@ DEBUG = False
 RESET_PASSWORD_VERBOSE_ERRORS = get_env("RESET_PASSWORD_VERBOSE_ERRORS", True, bool)
 
 # OpenSlides specific settings
-AUTOUPDATE_DELAY = get_env("AUTOUPDATE_DELAY", 1, int)
+AUTOUPDATE_DELAY = get_env("AUTOUPDATE_DELAY", 1, float)
 DEMO_USERS = get_env("DEMO_USERS", default=None)
 DEMO_USERS = json.loads(DEMO_USERS) if DEMO_USERS else None
 
@@ -83,6 +83,8 @@ DATABASES = {
         "PASSWORD": get_env("DATABASE_PASSWORD", "openslides"),
         "HOST": get_env("DATABASE_HOST", "db"),
         "PORT": get_env("DATABASE_PORT", "5432"),
+        "USE_TZ": False,  # Requires postgresql to have UTC set as default
+        "DISABLE_SERVER_SIDE_CURSORS": True,
     },
     "mediafiles": {
         "ENGINE": "django.db.backends.postgresql",
@@ -99,46 +101,22 @@ REDIS_HOST = get_env("REDIS_HOST", "redis")
 REDIS_PORT = get_env("REDIS_PORT", 6379, int)
 REDIS_SLAVE_HOST = get_env("REDIS_SLAVE_HOST", "redis-slave")
 REDIS_SLAVE_PORT = get_env("REDIS_SLAVE_PORT", 6379, int)
-REDIS_CHANNLES_HOST = get_env("REDIS_CHANNLES_HOST", "redis-channels")
-REDIS_CHANNLES_PORT = get_env("REDIS_CHANNLES_PORT", 6379, int)
-REDIS_SLAVE_WAIT_TIMEOUT = get_env("REDIS_SLAVE_WAIT_TIMEOUT", 10000, int)
-
-# Django Channels
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [(REDIS_CHANNLES_HOST, REDIS_CHANNLES_PORT)],
-            "capacity": 10000,
-        },
-    },
-}
 
 # Collection Cache
 REDIS_ADDRESS = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 REDIS_READ_ONLY_ADDRESS = f"redis://{REDIS_SLAVE_HOST}:{REDIS_SLAVE_PORT}/0"
-AMOUNT_REPLICAS = get_env("AMOUNT_REPLICAS", 1, int)
 CONNECTION_POOL_LIMIT = get_env("CONNECTION_POOL_LIMIT", 100, int)
-
-# Session backend
-SESSION_ENGINE = "redis_sessions.session"
-SESSION_REDIS = {
-    "host": REDIS_HOST,
-    "port": REDIS_PORT,
-    "db": 0,
-    "prefix": "session",
-    "socket_timeout": 2,
-}
 
 # SAML integration
 ENABLE_SAML = get_env("ENABLE_SAML", False, bool)
 if ENABLE_SAML:
     INSTALLED_APPS += ["openslides.saml"]
 
-# TODO: More saml stuff...
-
 # Controls if electronic voting (means non-analog polls) are enabled.
 ENABLE_ELECTRONIC_VOTING = get_env("ENABLE_ELECTRONIC_VOTING", False, bool)
+
+# Enable Chat
+ENABLE_CHAT = get_env("ENABLE_CHAT", False, bool)
 
 # Jitsi integration
 JITSI_DOMAIN = get_env("JITSI_DOMAIN", None)

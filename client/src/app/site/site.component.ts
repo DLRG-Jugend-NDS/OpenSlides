@@ -10,9 +10,11 @@ import { TranslateService } from '@ngx-translate/core';
 import { filter } from 'rxjs/operators';
 
 import { navItemAnim } from '../shared/animations';
-import { OfflineService } from 'app/core/core-services/offline.service';
+import { OfflineBroadcastService } from 'app/core/core-services/offline-broadcast.service';
 import { OverlayService } from 'app/core/ui-services/overlay.service';
 import { UpdateService } from 'app/core/ui-services/update.service';
+import { ChatNotificationService } from 'app/site/chat/services/chat-notification.service';
+import { ChatService } from 'app/site/chat/services/chat.service';
 import { BaseComponent } from '../base.component';
 import { MainMenuEntry, MainMenuService } from '../core/core-services/main-menu.service';
 import { OpenSlidesStatusService } from '../core/core-services/openslides-status.service';
@@ -70,6 +72,9 @@ export class SiteComponent extends BaseComponent implements OnInit {
         return this.mainMenuService.entries;
     }
 
+    public chatNotificationAmount = 0;
+    public canSeeChat = false;
+
     /**
      * Constructor
      * @param route
@@ -84,7 +89,7 @@ export class SiteComponent extends BaseComponent implements OnInit {
     public constructor(
         title: Title,
         protected translate: TranslateService,
-        offlineService: OfflineService,
+        offlineBroadcastService: OfflineBroadcastService,
         private updateService: UpdateService,
         private router: Router,
         public operator: OperatorService,
@@ -94,12 +99,14 @@ export class SiteComponent extends BaseComponent implements OnInit {
         public OSStatus: OpenSlidesStatusService,
         public timeTravel: TimeTravelService,
         private matSnackBar: MatSnackBar,
-        private overlayService: OverlayService
+        private overlayService: OverlayService,
+        private chatNotificationService: ChatNotificationService,
+        private chatService: ChatService
     ) {
         super(title, translate);
         overlayService.showSpinner(translate.instant('Loading data. Please wait ...'));
 
-        offlineService.isOffline().subscribe(offline => {
+        offlineBroadcastService.isOfflineObservable.subscribe(offline => {
             this.isOffline = offline;
         });
 
@@ -116,6 +123,11 @@ export class SiteComponent extends BaseComponent implements OnInit {
                     this.showUpdateNotification();
                 }
             });
+
+        this.chatNotificationService.chatgroupNotificationsObservable.subscribe(amounts => {
+            this.chatNotificationAmount = Object.keys(amounts).reduce((sum, key) => sum + amounts[key], 0);
+        });
+        this.chatService.canSeeChatObservable.subscribe(canSeeChat => (this.canSeeChat = canSeeChat));
     }
 
     /**
