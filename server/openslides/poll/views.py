@@ -14,7 +14,7 @@ from openslides.utils.rest_api import (
     ModelViewSet,
     Response,
     ValidationError,
-    detail_route,
+    action,
 )
 
 from .models import BasePoll
@@ -37,6 +37,14 @@ class BasePollViewSet(ModelViewSet):
             return True
         else:
             return self.has_manage_permissions()
+
+    def get_locked_object(self):
+        """
+        Enhance get_object to make sure to lock the underlying object to prevent
+        race conditions.
+        """
+        poll = self.get_object()
+        return self.queryset.select_for_update().get(pk=poll.pk)
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
@@ -66,7 +74,7 @@ class BasePollViewSet(ModelViewSet):
         """
         Customized view endpoint to update a poll.
         """
-        poll = self.get_object()
+        poll = self.get_locked_object()
 
         partial = kwargs.get("partial", False)
         serializer = self.get_serializer(poll, data=request.data, partial=partial)
@@ -119,10 +127,10 @@ class BasePollViewSet(ModelViewSet):
         # The implementation can be found in concret view set e. g. MotionPollViewSet.
         pass
 
-    @detail_route(methods=["POST"])
+    @action(detail=True, methods=["POST"])
     @transaction.atomic
     def start(self, request, pk):
-        poll = self.get_object()
+        poll = self.get_locked_object()
         if poll.state != BasePoll.STATE_CREATED:
             raise ValidationError({"detail": "Wrong poll state"})
         poll.state = BasePoll.STATE_STARTED
@@ -132,11 +140,11 @@ class BasePollViewSet(ModelViewSet):
         self.extend_history_information(["Voting started"])
         return Response()
 
-    @detail_route(methods=["POST"])
+    @action(detail=True, methods=["POST"])
     @transaction.atomic
     def stop(self, request, pk):
-        poll = self.get_object()
-        # Analog polls could not be stopped; they are stopped when
+        poll = self.get_locked_object()
+        # Analog polls cannot be stopped; they are stopped when
         # the results are entered.
         if poll.type == BasePoll.TYPE_ANALOG:
             raise ValidationError(
@@ -152,10 +160,10 @@ class BasePollViewSet(ModelViewSet):
         self.extend_history_information(["Voting stopped"])
         return Response()
 
-    @detail_route(methods=["POST"])
+    @action(detail=True, methods=["POST"])
     @transaction.atomic
     def publish(self, request, pk):
-        poll = self.get_object()
+        poll = self.get_locked_object()
         if poll.state != BasePoll.STATE_FINISHED:
             raise ValidationError({"detail": "Wrong poll state"})
 
@@ -172,10 +180,10 @@ class BasePollViewSet(ModelViewSet):
         inform_changed_data(poll.get_options())
         return Response()
 
-    @detail_route(methods=["POST"])
+    @action(detail=True, methods=["POST"])
     @transaction.atomic
     def pseudoanonymize(self, request, pk):
-        poll = self.get_object()
+        poll = self.get_locked_object()
 
         if poll.state not in (BasePoll.STATE_FINISHED, BasePoll.STATE_PUBLISHED):
             raise ValidationError(
@@ -188,21 +196,21 @@ class BasePollViewSet(ModelViewSet):
         self.extend_history_information(["Voting anonymized"])
         return Response()
 
-    @detail_route(methods=["POST"])
+    @action(detail=True, methods=["POST"])
     @transaction.atomic
     def reset(self, request, pk):
-        poll = self.get_object()
+        poll = self.get_locked_object()
         poll.reset()
         self.extend_history_information(["Voting reset"])
         return Response()
 
-    @detail_route(methods=["POST"])
+    @action(detail=True, methods=["POST"])
     @transaction.atomic
     def vote(self, request, pk):
         """
         For motion polls: Just "Y", "N" or "A" (if pollmethod is "YNA")
         """
-        poll = self.get_object()
+        poll = self.get_locked_object()
 
         # Disable history for these requests
         disable_history()
@@ -254,10 +262,10 @@ class BasePollViewSet(ModelViewSet):
 
         return Response()
 
-    @detail_route(methods=["POST"])
+    @action(detail=True, methods=["POST"])
     @transaction.atomic
     def refresh(self, request, pk):
-        poll = self.get_object()
+        poll = self.get_locked_object()
         inform_changed_data(poll)
         inform_changed_data(poll.get_options())
         inform_changed_data(poll.get_votes())

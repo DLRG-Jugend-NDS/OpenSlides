@@ -31,19 +31,18 @@ from ..core.signals import permission_change
 from ..utils.auth import (
     GROUP_ADMIN_PK,
     GROUP_DEFAULT_PK,
+    UserDoesNotExist,
     anonymous_is_enabled,
     has_perm,
 )
 from ..utils.autoupdate import AutoupdateElement, inform_changed_data, inform_elements
 from ..utils.cache import element_cache
 from ..utils.rest_api import (
-    APIException,
     ModelViewSet,
     Response,
     SimpleMetadata,
     ValidationError,
-    detail_route,
-    list_route,
+    action,
     status,
 )
 from ..utils.validate import validate_json
@@ -168,6 +167,11 @@ class UserViewSet(ModelViewSet):
         ):
             request.data["username"] = user.username
 
+        # handle delegated_from field seperately since its a SerializerMethodField
+        new_delegation_ids = request.data.get("vote_delegated_from_users_id")
+        if "vote_delegated_from_users_id" in request.data:
+            del request.data["vote_delegated_from_users_id"]
+
         # check that no chains are created with vote delegation
         delegate_id = request.data.get("vote_delegated_to_id")
         if delegate_id:
@@ -182,23 +186,27 @@ class UserViewSet(ModelViewSet):
 
             self.assert_no_self_delegation(user, [delegate_id])
             self.assert_vote_not_delegated(delegate)
-            self.assert_has_no_delegated_votes(user)
+            # if vote_delegated_from is reset in this request, we can skip this check
+            if new_delegation_ids != []:
+                self.assert_has_no_delegated_votes(user)
 
             inform_changed_data(delegate)
             if user.vote_delegated_to:
                 inform_changed_data(user.vote_delegated_to)
+        elif "vote_delegated_to_id" in request.data and user.vote_delegated_to:
+            inform_changed_data(user.vote_delegated_to)
 
-        # handle delegated_from field seperately since its a SerializerMethodField
-        new_delegation_ids = request.data.get("vote_delegated_from_users_id")
-        if "vote_delegated_from_users_id" in request.data:
-            del request.data["vote_delegated_from_users_id"]
-
-        response = super().update(request, *args, **kwargs)
+        try:
+            response = super().update(request, *args, **kwargs)
+        except IntegrityError as e:
+            raise ValidationError({"detail": str(e)})
 
         # after rest of the request succeeded, handle delegation changes
         if isinstance(new_delegation_ids, list):
+            user.refresh_from_db()  # fetch updated model
             self.assert_no_self_delegation(user, new_delegation_ids)
-            self.assert_vote_not_delegated(user)
+            if new_delegation_ids:
+                self.assert_vote_not_delegated(user)
 
             for id in new_delegation_ids:
                 try:
@@ -257,7 +265,7 @@ class UserViewSet(ModelViewSet):
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @detail_route(methods=["post"])
+    @action(detail=True, methods=["post"])
     def reset_password(self, request, pk=None):
         """
         View to reset the password of the given user (by url) using a provided password.
@@ -284,7 +292,7 @@ class UserViewSet(ModelViewSet):
         user.save()
         return Response({"detail": "Password successfully reset."})
 
-    @list_route(methods=["post"])
+    @action(detail=False, methods=["post"])
     def bulk_generate_passwords(self, request):
         """
         Generates new random passwords for many users. The request user is excluded
@@ -304,7 +312,7 @@ class UserViewSet(ModelViewSet):
             user.save()
         return Response()
 
-    @list_route(methods=["post"])
+    @action(detail=False, methods=["post"])
     def bulk_reset_passwords_to_default(self, request):
         """
         resets the password of all given users to their default ones. The
@@ -336,7 +344,7 @@ class UserViewSet(ModelViewSet):
             user.save()
         return Response()
 
-    @list_route(methods=["post"])
+    @action(detail=False, methods=["post"])
     def bulk_set_state(self, request):
         """
         Sets the "state" of may users. The "state" means boolean attributes like active
@@ -374,7 +382,7 @@ class UserViewSet(ModelViewSet):
 
         return Response()
 
-    @list_route(methods=["post"])
+    @action(detail=False, methods=["post"])
     def bulk_alter_groups(self, request):
         """
         Adds or removes groups from given users. The request user is excluded.
@@ -407,7 +415,7 @@ class UserViewSet(ModelViewSet):
         inform_changed_data(users)
         return Response()
 
-    @list_route(methods=["post"])
+    @action(detail=False, methods=["post"])
     def bulk_delete(self, request):
         """
         Deletes many users. The request user will be excluded. Expected data:
@@ -434,7 +442,7 @@ class UserViewSet(ModelViewSet):
             queryset = queryset.filter(auth_type=auth_type)
         return queryset.exclude(pk=request.user.id).filter(pk__in=ids)
 
-    @list_route(methods=["post"])
+    @action(detail=False, methods=["post"])
     @transaction.atomic
     def mass_import(self, request):
         """
@@ -487,7 +495,7 @@ class UserViewSet(ModelViewSet):
             }
         )
 
-    @list_route(methods=["post"])
+    @action(detail=False, methods=["post"])
     def mass_invite_email(self, request):
         """
         Endpoint to send invitation emails to all given users (by id). Returns the
@@ -661,7 +669,7 @@ class GroupViewSet(ModelViewSet):
         inform_changed_data(affected_users)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @detail_route(methods=["post"])
+    @action(detail=True, methods=["post"])
     @transaction.atomic
     def set_permission(self, request, *args, **kwargs):
         """
@@ -761,7 +769,7 @@ class PersonalNoteViewSet(ModelViewSet):
             result = False
         return result
 
-    @list_route(methods=["post"])
+    @action(detail=False, methods=["post"])
     @transaction.atomic
     def create_or_update(self, request, *args, **kwargs):
         """
@@ -841,18 +849,24 @@ class WhoAmIDataView(APIView):
         user_id = self.request.user.pk or 0
         guest_enabled = anonymous_is_enabled()
 
-        auth_type = "default"
         if user_id:
-            user_full_data = async_to_sync(element_cache.get_element_data)(
-                self.request.user.get_collection_string(), user_id
-            )
-            if user_full_data is None:
-                raise APIException(f"Could not find user {user_id}", 500)
+            try:
+                user_full_data = async_to_sync(element_cache.get_element_data)(
+                    self.request.user.get_collection_string(), user_id
+                )
+                if user_full_data is None:
+                    raise UserDoesNotExist()
 
-            auth_type = user_full_data["auth_type"]
-            user_data = async_to_sync(restrict_user)(user_full_data)
-            group_ids = user_data["groups_id"] or [GROUP_DEFAULT_PK]
-        else:
+                auth_type = user_full_data["auth_type"]
+                user_data = async_to_sync(restrict_user)(
+                    user_full_data
+                )  # This could also raise UserDoesNotExist
+                group_ids = user_data["groups_id"] or [GROUP_DEFAULT_PK]
+            except UserDoesNotExist:
+                user_id = None  # continue as the anonymous user
+
+        if not user_id:
+            auth_type = "default"
             user_data = None
             group_ids = [GROUP_DEFAULT_PK] if guest_enabled else []
 
