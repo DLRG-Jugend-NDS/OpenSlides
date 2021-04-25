@@ -110,7 +110,8 @@ services:
       - back
     restart: always
     ports:
-      - "127.0.0.1:ifenvelse(`EXTERNAL_HTTP_PORT', 8000):8000"
+      - "0.0.0.0:ifenvelse(`EXTERNAL_HTTP_PORT', 8000):8000"
+      - "0.0.0.0:80:80"
 
   server:
     << : *default-osserver
