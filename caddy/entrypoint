@@ -3,7 +3,7 @@
 set -e
 
 if [[ -f "/certs/key.pem" ]] && [[ -f "/certs/cert.pem" ]]; then
-    cat <<EOF >> /etc/caddy/endpoint
+    cat <<EOF > /etc/caddy/endpoint
 https://:8000 {
     tls /certs/cert.pem /certs/key.pem
 EOF
