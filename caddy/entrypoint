@@ -4,12 +4,12 @@ set -e
 
 if [[ -f "/certs/key.pem" ]] && [[ -f "/certs/cert.pem" ]]; then
     cat <<EOF > /etc/caddy/endpoint
-https://:8000 {
+https:// {
     tls /certs/cert.pem /certs/key.pem
 EOF
     echo "Configured https"
 else
-    echo "http://:8000 {" > /etc/caddy/endpoint
+    echo "http:// {" > /etc/caddy/endpoint
     echo "Configured http"
 fi
 
